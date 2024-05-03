@@ -22,3 +22,40 @@ Running 10s test @ http://localhost:8000/
 Requests/sec: 440814.53
 Transfer/sec:    372.89MB
 ```
+
+## Release
+
+These tools should be installed:
+
+```
+go install github.com/client9/misspell/cmd/misspell@latest
+go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+go install github.com/gordonklaus/ineffassign@latest
+go install golang.org/x/lint/golint@latest
+go install golang.org/x/pkgsite/cmd/pkgsite@latest
+```
+
+and then these tests run:
+
+```
+gofmt -s -l .
+go vet ./...
+~/go/bin/golint ./...
+~/go/bin/gocyclo .
+~/go/bin/ineffassign .
+~/go/bin/misspell .
+```
+
+Then run this and visit [http://localhost:8080](http://localhost:8080) to check the docs:
+
+```
+~/go/bin/pkgsite
+```
+
+Finally you can tag the remote branch with the version:
+
+```
+git push origin main
+git tag v0.1.0
+git push origin v0.1.0
+```
