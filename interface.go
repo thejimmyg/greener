@@ -2,18 +2,19 @@ package greener
 
 import (
 	"context"
+	"html/template"
 	"net/http"
 )
 
 // Injector
 type Injector interface {
-	Inject(App) (HTMLable, HTMLable)
+	Inject(App) (template.HTML, template.HTML)
 }
 
 // EmptyPageProvider
 type EmptyPageProvider interface {
 	PerformInjections(App)
-	Page(title string, body HTMLable) HTMLable
+	Page(title string, body template.HTML) template.HTML
 }
 
 // Logger interface

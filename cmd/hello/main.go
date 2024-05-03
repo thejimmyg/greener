@@ -14,7 +14,7 @@ func main() {
 		greener.NewDefaultEmptyPageProvider([]greener.Injector{}),
 	)
 	app.HandleWithServices("/", func(s greener.Services) {
-		app.Page("Hello", greener.Text("Hello <>!")).WriteHTMLTo(s.W())
+		s.W().Write([]byte(app.Page("Hello", greener.Text("Hello <>!"))))
 	})
 	app.Serve(context.Background())
 }

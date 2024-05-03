@@ -3,7 +3,8 @@
 Copy `greener` to `~/go/pkg/github.com/thejimmyg/greener` then run:
 
 ```
-go run cmd/wiki/main.go
+go run cmd/hello/main.go
+go run cmd/simple/main.go
 ```
 
 Benchmark:

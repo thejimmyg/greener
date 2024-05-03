@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -21,7 +22,7 @@ func NewSimpleConfig() *SimpleConfig {
 
 // An example of injecting a component which needs both the SimpleApp and SimpleServices
 type WritePageProvider interface {
-	WritePage(title string, body greener.HTMLable)
+	WritePage(title string, body template.HTML)
 }
 
 type DefaultWritePageProvider struct {
@@ -29,8 +30,8 @@ type DefaultWritePageProvider struct {
 	greener.EmptyPageProvider
 }
 
-func (d *DefaultWritePageProvider) WritePage(title string, body greener.HTMLable) {
-	d.Page(title, body).WriteHTMLTo(d.W())
+func (d *DefaultWritePageProvider) WritePage(title string, body template.HTML) {
+	d.W().Write([]byte(d.Page(title, body)))
 }
 
 func NewDefaultWritePageProvider(emptyPageProvider greener.EmptyPageProvider, responseWriterProvider greener.ResponseWriterProvider) *DefaultWritePageProvider {

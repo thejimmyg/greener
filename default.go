@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"html/template"
 	"image"
 	"io/fs"
 	"net"
@@ -155,7 +156,7 @@ type DefaultStyleInjector struct {
 	uiSupports []UISupport
 }
 
-func (d *DefaultStyleInjector) Inject(app App) (HTMLable, HTMLable) {
+func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
 	var buffer bytes.Buffer
 	for _, uis := range d.uiSupports {
 		buffer.WriteString(uis.Style())
@@ -165,11 +166,11 @@ func (d *DefaultStyleInjector) Inject(app App) (HTMLable, HTMLable) {
 		d.Logf("Adding route for styles")
 		ch := NewContentHandler(d.Logger, style, "text/css", "")
 		app.Handle("/style-"+ch.Hash()+".css", ch)
-		return HTML(`
-    <link rel="stylesheet" href="/style-` + ch.Hash() + `.css">`), HTML("")
+		return template.HTML(`
+    <link rel="stylesheet" href="/style-` + ch.Hash() + `.css">`), template.HTML("")
 	} else {
 		d.Logf("No styles specified")
-		return HTML(""), HTML("")
+		return template.HTML(""), template.HTML("")
 	}
 }
 func NewDefaultStyleInjector(logger Logger, uiSupports []UISupport) *DefaultStyleInjector {
@@ -181,7 +182,7 @@ type DefaultScriptInjector struct {
 	uiSupports []UISupport
 }
 
-func (d *DefaultScriptInjector) Inject(app App) (HTMLable, HTMLable) {
+func (d *DefaultScriptInjector) Inject(app App) (template.HTML, template.HTML) {
 	var buffer bytes.Buffer
 	includeServiceWorker := false
 	for _, uis := range d.uiSupports {
@@ -210,11 +211,11 @@ if ('serviceWorker' in navigator) {
 		d.Logf("Adding route for /script.js")
 		app.HandleFunc("/script.js", StaticContentHandler(d.Logger, script, "text/javascript; charset=utf-8"))
 
-		return HTML(""), HTML(`
+		return template.HTML(""), template.HTML(`
     <script src="/script.js"></script>`)
 	} else {
 		d.Logf("No scripts specified")
-		return HTML(""), HTML("")
+		return template.HTML(""), template.HTML("")
 	}
 }
 func NewDefaultScriptInjector(logger Logger, uiSupports []UISupport) *DefaultScriptInjector {
@@ -226,7 +227,7 @@ type DefaultServiceWorkerInjector struct {
 	uiSupports []UISupport
 }
 
-func (d *DefaultServiceWorkerInjector) Inject(app App) (HTMLable, HTMLable) {
+func (d *DefaultServiceWorkerInjector) Inject(app App) (template.HTML, template.HTML) {
 	var buffer bytes.Buffer
 	for _, sp := range d.uiSupports {
 		buffer.WriteString(sp.ServiceWorker())
@@ -235,10 +236,10 @@ func (d *DefaultServiceWorkerInjector) Inject(app App) (HTMLable, HTMLable) {
 	if serviceWorker != nil {
 		d.Logf("Adding route for /service-worker.js")
 		app.HandleFunc("/service-worker.js", StaticContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8"))
-		return HTML(""), HTML("")
+		return template.HTML(""), template.HTML("")
 	} else {
 		d.Logf("No serviceWorkers specified")
-		return HTML(""), HTML("")
+		return template.HTML(""), template.HTML("")
 	}
 }
 
@@ -251,11 +252,11 @@ type DefaultThemeColorInjector struct {
 	themeColor string
 }
 
-func (d *DefaultThemeColorInjector) Inject(app App) (HTMLable, HTMLable) {
+func (d *DefaultThemeColorInjector) Inject(app App) (template.HTML, template.HTML) {
 	d.Logf("Adding theme color")
 	return HTMLPrintf(`
     <meta name="msapplication-TileColor" content="%s">
-    <meta name="theme-color" content="%s">`, Text(d.themeColor), Text(d.themeColor)), HTML("")
+    <meta name="theme-color" content="%s">`, Text(d.themeColor), Text(d.themeColor)), template.HTML("")
 }
 
 func NewDefaultThemeColorInjector(logger Logger, themeColor string) *DefaultThemeColorInjector {
@@ -267,26 +268,26 @@ type DefaultIconsInjector struct {
 	wwwFS fs.FS
 }
 
-func (d *DefaultIconsInjector) Inject(app App) (HTMLable, HTMLable) {
+func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
 	d.Logf("Adding icons to HTML")
 	fileIcon512, err := fs.ReadFile(d.wwwFS, "icons/favicon-512x512.png")
 	if err != nil {
 		d.Logf("Failed to open source image for favicon: %v", err)
-		return HTML(""), HTML("")
+		return template.HTML(""), template.HTML("")
 	}
 	icon512Etag := GenerateETag(fileIcon512)
 	icon512, _, err := image.Decode(bytes.NewReader(fileIcon512))
 	if err != nil {
 		d.Logf("Failed to decode source image for favicon: %v", err)
-		return HTML(""), HTML("")
+		return template.HTML(""), template.HTML("")
 	}
 	app.HandleFunc("/favicon.ico", StaticFaviconHandler(d.Logger, &icon512))
 	app.HandleFunc("/icons/", StaticIconHandler(d.Logger, &icon512, icon512Etag, []int{16, 32, 144, 180, 192}))
-	return HTML(`
+	return template.HTML(`
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/favicon-180x180.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="shortcut icon" href="/favicon.ico">`), HTML("")
+    <link rel="shortcut icon" href="/favicon.ico">`), template.HTML("")
 }
 
 func NewDefaultIconsInjector(logger Logger, wwwFS fs.FS) *DefaultIconsInjector {
@@ -298,7 +299,7 @@ type DefaultManifestInjector struct {
 	appShortName string
 }
 
-func (d *DefaultManifestInjector) Inject(app App) (HTMLable, HTMLable) {
+func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML) {
 	d.Logf("Adding manifest to HTML")
 	app.HandleFunc("/manifest.json", StaticContentHandler(d.Logger, []byte(fmt.Sprintf(`{
   "name": "%s",
@@ -318,8 +319,8 @@ func (d *DefaultManifestInjector) Inject(app App) (HTMLable, HTMLable) {
     }
   ]
 }`, d.appShortName, d.appShortName)), "application/json"))
-	return HTML(`
-    <link rel="manifest" href="/manifest.json">`), HTML("")
+	return template.HTML(`
+    <link rel="manifest" href="/manifest.json">`), template.HTML("")
 }
 
 func NewDefaultManifestInjector(logger Logger, appShortName string) *DefaultManifestInjector {
@@ -332,7 +333,7 @@ type DefaultEmptyPageProvider struct {
 	injectors []Injector
 }
 
-func (d *DefaultEmptyPageProvider) Page(title string, body HTMLable) HTMLable {
+func (d *DefaultEmptyPageProvider) Page(title string, body template.HTML) template.HTML {
 	return HTMLPrintf(d.page, Text(title), body)
 }
 
@@ -341,8 +342,8 @@ func (d *DefaultEmptyPageProvider) PerformInjections(app App) {
 	bodyExtra := ""
 	for _, injector := range d.injectors {
 		h, b := injector.Inject(app)
-		headExtra += strings.Replace(string(h.HTML()), "%", "%%", -1)
-		bodyExtra += strings.Replace(string(b.HTML()), "%", "%%", -1)
+		headExtra += strings.Replace(string(h), "%", "%%", -1)
+		bodyExtra += strings.Replace(string(b), "%", "%%", -1)
 	}
 	d.page = `<!DOCTYPE html>
 <html lang="en-GB">
