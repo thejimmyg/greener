@@ -13,13 +13,13 @@ import (
 //go:embed www/*
 var wwwFiles embed.FS
 
-type WikiConfig struct{}
+type SimpleConfig struct{}
 
-func NewWikiConfig() *WikiConfig {
-	return &WikiConfig{}
+func NewSimpleConfig() *SimpleConfig {
+	return &SimpleConfig{}
 }
 
-// An example of injecting a component which needs both the WikiApp and WikiServices
+// An example of injecting a component which needs both the SimpleApp and SimpleServices
 type WritePageProvider interface {
 	WritePage(title string, body greener.HTMLable)
 }
@@ -37,27 +37,27 @@ func NewDefaultWritePageProvider(emptyPageProvider greener.EmptyPageProvider, re
 	return &DefaultWritePageProvider{EmptyPageProvider: emptyPageProvider, ResponseWriterProvider: responseWriterProvider}
 }
 
-type WikiServices struct {
+type SimpleServices struct {
 	greener.Services
 	WritePageProvider // Here is the interface we are extending the serivces with
 }
 
-type WikiApp struct {
+type SimpleApp struct {
 	greener.App
-	*WikiConfig
+	*SimpleConfig
 }
 
-func NewWikiApp(app greener.App, wikiConfig *WikiConfig) *WikiApp {
-	return &WikiApp{
-		App:        app,
-		WikiConfig: wikiConfig,
+func NewSimpleApp(app greener.App, simpleConfig *SimpleConfig) *SimpleApp {
+	return &SimpleApp{
+		App:          app,
+		SimpleConfig: simpleConfig,
 	}
 }
 
-func (app *WikiApp) HandleWithWikiServices(path string, handler func(*WikiServices)) {
+func (app *SimpleApp) HandleWithSimpleServices(path string, handler func(*SimpleServices)) {
 	app.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		services := app.NewServices(w, r)
-		s := &WikiServices{Services: services} // We have to leave WritePageProvider nil temporarily
+		s := &SimpleServices{Services: services} // We have to leave WritePageProvider nil temporarily
 		writePageProvider := NewDefaultWritePageProvider(app, s)
 		s.WritePageProvider = writePageProvider // Now we set it here.
 		handler(s)
@@ -73,7 +73,7 @@ func main() {
 		`console.log("Hello from service worker");`,
 	)}
 	themeColor := "#000000"
-	appShortName := "Wiki"
+	appShortName := "Simple"
 	config := greener.NewDefaultServeConfigProviderFromEnvironment()
 	logger := greener.NewDefaultLogger(log.Printf)
 	injectors := []greener.Injector{
@@ -88,8 +88,8 @@ func main() {
 	static := greener.NewCompressedFileHandler(http.FS(wwwFS))
 
 	// Routes
-	app := NewWikiApp(greener.NewDefaultApp(config, logger, emptyPageProvider), NewWikiConfig())
-	app.HandleWithWikiServices("/", func(s *WikiServices) {
+	app := NewSimpleApp(greener.NewDefaultApp(config, logger, emptyPageProvider), NewSimpleConfig())
+	app.HandleWithSimpleServices("/", func(s *SimpleServices) {
 		if s.R().URL.Path != "/" {
 			// If no other route is matched and the request is not for / then serve a static file
 			static.ServeHTTP(s.W(), s.R())

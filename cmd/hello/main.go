@@ -13,7 +13,7 @@ func main() {
 		greener.NewDefaultLogger(log.Printf),
 		greener.NewDefaultEmptyPageProvider([]greener.Injector{}),
 	)
-	app.Handle("/", func(s greener.Services) {
+	app.HandleWithServices("/", func(s greener.Services) {
 		app.Page("Hello", greener.Text("Hello <>!")).WriteHTMLTo(s.W())
 	})
 	app.Serve(context.Background())

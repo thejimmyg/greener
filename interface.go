@@ -44,7 +44,10 @@ type HandleFuncProvider interface {
 	HandleFunc(string, http.HandlerFunc)
 }
 type HandleProvider interface {
-	Handle(string, func(Services))
+	Handle(string, http.Handler)
+}
+type HandleWithServicesProvider interface {
+	HandleWithServices(string, func(Services))
 }
 type Server interface {
 	ServeConfigProvider
@@ -79,6 +82,7 @@ type App interface {
 	Server
 	HandleProvider
 	HandleFuncProvider
+	HandleWithServicesProvider
 	EmptyPageProvider
 	NewServicesProvider
 }

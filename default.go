@@ -162,10 +162,11 @@ func (d *DefaultStyleInjector) Inject(app App) (HTMLable, HTMLable) {
 	}
 	style := buffer.Bytes()
 	if style != nil {
-		d.Logf("Adding route for /style.css")
-		app.HandleFunc("/style.css", StaticContentHandler(d.Logger, style, "text/css"))
+		d.Logf("Adding route for styles")
+		ch := NewContentHandler(d.Logger, style, "text/css", "")
+		app.Handle("/style-"+ch.Hash()+".css", ch)
 		return HTML(`
-    <link rel="stylesheet" href="/style.css">`), HTML("")
+    <link rel="stylesheet" href="/style-` + ch.Hash() + `.css">`), HTML("")
 	} else {
 		d.Logf("No styles specified")
 		return HTML(""), HTML("")
@@ -428,7 +429,11 @@ func (app *DefaultApp) HandleFunc(path string, handler http.HandlerFunc) {
 	app.mux.HandleFunc(path, handler)
 }
 
-func (app *DefaultApp) Handle(path string, handler func(Services)) {
+func (app *DefaultApp) Handle(path string, handler http.Handler) {
+	app.mux.Handle(path, handler)
+}
+
+func (app *DefaultApp) HandleWithServices(path string, handler func(Services)) {
 	app.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		handler(app.NewServices(w, r))
 	})
