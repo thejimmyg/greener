@@ -1,12 +1,10 @@
-//go:build !noexample
-// +build !noexample
-
 package greener_test
 
 import (
 	"fmt"
-	"github.com/thejimmyg/greener"
 	"html/template"
+
+	"github.com/thejimmyg/greener"
 )
 
 func Page(title string, body BodyBlock) template.HTML {
@@ -41,7 +39,7 @@ func Webpage(title string, header, main, footer template.HTML) template.HTML {
 	return Page(title, &HeaderMainFooter{header, main, footer})
 }
 
-func Example_templates() {
+func Example_template() {
 	fmt.Printf("%v\n", Webpage(
 		"My Dynamic Page",
 		template.HTML("<h1>Custom Header Content</h1>"),
