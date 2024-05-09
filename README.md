@@ -5,7 +5,7 @@ will survive as long it makes more money than it spends. This means that as
 businesses grow, the commercial pressure is to grow sales more than it is to
 decrease costs. This means that frequently scaling challenges are solved by
 giving more money to hosting companies rather than investing in the benchmarks,
-tests and refactors necessary to write efficent, hight performance code. 
+tests and refactors necessary to write efficent, hight performance code.
 
 The hypothesis of this project is that a vast amount of that IT spend and CO~2~
 production is largely unnecessary, but that the problem is hard to address once
@@ -68,28 +68,79 @@ live replicas if that is necessary, so you can scale out in tradional ways too.
 
 ## Install
 
-Simply import it at the top of one of the `.go` files in your module:
+There are a few ways of getting started:
+
+1. Copy the git repo to your Go directory (usually `$HOME/go`) in the right place: `$HOME/go/pkg/github.com/thejimmyg/greener`.
+
+2. Import the package at the top of one of the `.go` files in your module:
+
+   ```
+   import (
+   	"github.com/thejimmyg/greener"
+   )
+   ```
+
+   Then run:
+
+   ```
+   go mod tidy
+   ```
+
+3. Install it with:
+
+   ```
+   go get github.com/thejimmyg/greener
+   ```
+
+With all there approaches the git repo ends up in `$HOME/go/pkg/github.com/thejimmyg/greener` where you can use it.
+
+## Starting your own project
+
+If you want to create a new project that uses `greener` I'd recommend you create your own repo in GitHub and then clone it into `$HOME/go/pkg/github.com/<username>/<repo>` and then run this in the root of the repo to create `go.mod`:
 
 ```
-import (
-	"github.com/thejimmyg/greener"
-)
+go mod init github.com/<username>/<repo>
 ```
 
-Then run:
+Check in `go.mod` (and `go.sum` if it exists) and then push.
+
+
+If you try to do anything even slightly different from this you'll need to properly understand go workspaces, modules and pacakges and there is quite a lot to learn. If you just stick to the above everything wull 'just' work.
+
+In some environments like gitpod you will have one place for Go and another place for your git repo. In those cases you can create a symlink from the correct place in your Go strucutre to your git repo.
+
+e.g.
 
 ```
-go mod tidy
+ln -s "$HOME/go/pkg/github.com/<username>/<repo>" path/to/git/repo
 ```
 
-Alternatively you can install it with:
+Obviously replace `<username>` and `<repo>` with your own values when following these instructions or trying the examples.
 
-```
-go get github.com/thejimmyg/greener
-```
 
-Or simply copy the git repo to your Go directory (usually `$HOME/go`) in the right place: `$HOME/go/pkg/github.com/thejimmyg/greener`.
 
+## Being efficient on the web
+
+The best way to be efficient on the web is to make sure your app doesn't make requests it doesn't need to. The main approaches are:
+
+
+* Bundle files together so that the browser doesn't need to make lots of separate requests for small pieces of content
+* Serve a file at a path that includes a hash of its content and cache it for a long time like a year so that browsers will only need to load it once a year. If the content changes, the hash and hence the path changes so the browser will then fetch the new version
+* Where you need the path to be at a fixed location use e-tag caching so that when the browser requests the file again, the server can tell it that it hasn't changed rather than sending it again.
+* Detect which compression algorithms the browser supports and send compressed content where possible.
+  * For static files served from a filesystem, you can pre-compress a gzipped version and then serve that if possible
+  * For static content served from memory in the app you can dynamically compress it and serve the best version
+
+Greener can help with each of these steps.
+
+* The `UISupport` interface embeds `StyleProvider`, `ScriptProvider` and `ServiceWorkerProvider`. The `NewDefaultUISupport()` method allows you to specify `style`, `script` and `serviceWorker` content. Then `DefaultStyleInjector`, `DefaultScriptInjector` and `DefaultServiceWorkerInjector` can be passed all the `UISupport`s in order to assemble a single `style.css`, `script.js` and `service-worker.js` and then to serve them either at a fixed location with etag caching and content compression (`StaticContentHandler`) or to serve them at a path based on their hash with a 1 year fixed cache and content compression (`NewContentHandler`).
+
+NOTE: Only the style.css is served with a `NewContentHandler` at the moment. The others are served with e-tag caching using `StaticContentHandler` but this should be changed since neither `script.js` nor `service-worker.js` need to be at a fixed path, it is just that `service-worker.js` need to be served directly from `/` so that hash has to form part of the filename, not a path component, but that's fine.
+
+
+Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injectors that use `NewContentHandler` and `StaticContentHandler` in action.
+
+QUESTION: Should `NewContentHandler` support etag caching too just in case the browser somehow messes up the 1 year cache and requests it again, or is that unnecessary?
 
 ## Examples
 
