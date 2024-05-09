@@ -142,6 +142,41 @@ Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injec
 
 QUESTION: Should `NewContentHandler` support etag caching too just in case the browser somehow messes up the 1 year cache and requests it again, or is that unnecessary?
 
+## GenerateGz
+
+There is a [`generategz`](cmd/generategz/main.go) tool that will scan a directly and pre-compress files to .gz adding a `.gz` extension. If the compressed file is actually bigger it is deleted.
+
+You use it like this:
+
+```
+go run cmd/generategz/main.go cmd/advanced/www icons
+Walking 'cmd/advanced/www' ...
+Compressing 'cmd/advanced/www/file-to-compress.txt' ...
+Compressing 'cmd/advanced/www/humans.txt' ...
+Gzipped version is larger, so we'll delete it again
+Ignoring 'cmd/advanced/www/icons/favicon-512x512.png'
+```
+
+In this case `cmd/advanced/www` is the directory where pre-compressed versions should be added and `icons` is a directory relative to that one of files to skip. You can add multiple directories to skip by adding more arguments.
+
+Once you have pre-compressed assets in this way you can change the file serving you use from this:
+
+```
+wwwFS, _ := fs.Sub(wwwFiles, "www") // Used for the icon and the static file serving
+static := greener.NewCompressedFileHandler(http.FS(wwwFS))
+...
+static.ServeHTTP(s.W(), s.R())
+```
+
+to:
+
+```
+greener.NewCompressedFileHandler(wwwFS)
+```
+
+In this second version, if a `.gz` version is present and the client supports it, it will be served. Otherwise the original is served. In both cases etag caching is used.
+
+
 ## Examples
 
 Here are some examples.

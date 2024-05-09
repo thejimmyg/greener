@@ -1,8 +1,8 @@
 package greener_test
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 	"html/template"
 )
 
@@ -37,15 +37,15 @@ func Example_template_html() {
                         {{define "footer"}}{{.Footer}}{{end}}`)
 
 	pageData := struct {
-		Title     string
-		Header    template.HTML
-		Main      template.HTML
-		Footer    template.HTML
+		Title  string
+		Header template.HTML
+		Main   template.HTML
+		Footer template.HTML
 	}{
-		Title:     "My Dynamic Page",
-		Header:    template.HTML("<h1>Custom Header Content</h1>"),
-		Main:      template.HTML("<p>This is the main section with <strong>custom content</strong>.</p>"),
-		Footer:    template.HTML("<p>© 2024 My Website</p>"),
+		Title:  "My Dynamic Page",
+		Header: template.HTML("<h1>Custom Header Content</h1>"),
+		Main:   template.HTML("<p>This is the main section with <strong>custom content</strong>.</p>"),
+		Footer: template.HTML("<p>© 2024 My Website</p>"),
 	}
 
 	var buf bytes.Buffer
