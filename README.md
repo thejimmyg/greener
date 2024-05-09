@@ -93,8 +93,13 @@ Or simply copy the git repo to your Go directory (usually `$HOME/go`) in the rig
 
 ## Examples
 
+Here are some examples.
+
+**TIP: These are in Go's example test format. If you view the code from the generated docs, it will be correct, but if you view it from source you'll need to change the package name to `main` and the `Example_()` function name to `main()` yourself.**
+
 * [Actor](https://pkg.go.dev/github.com/thejimmyg/greener#example-package-Actor) ([src](example_actor_test.go))
 * [Template](https://pkg.go.dev/github.com/thejimmyg/greener#example-package-Template) ([src](example_template_test.go))
+* [Template HTML](https://pkg.go.dev/github.com/thejimmyg/greener#example-package-Template_html) ([src](example_template_html_test.go)) (this one uses `html/template` for comparison)
 * [Server](https://pkg.go.dev/github.com/thejimmyg/greener#example-package-Server) ([src](example_server_test.go))
 
 You can also run the hello world and advanced examples yourself with:
