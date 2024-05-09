@@ -142,6 +142,21 @@ Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injec
 
 QUESTION: Should `NewContentHandler` support etag caching too just in case the browser somehow messes up the 1 year cache and requests it again, or is that unnecessary?
 
+
+Injectors:
+
+* Script (if service worker)
+* Style (legacy and modern)
+* Manifest
+* Service worker (if manifest)
+* Icon
+
+The top ones should all generate brotli, gzip and original and set a forever cache returning the base64 sha512 sum of the contents, perhaps salted with a particular string.
+
+Icon should be loaded from a specific embedded file system for just that icon and again served with a forever cache from the sha512 e.g. icons/512x512/sfdaojiafihoasdfhoasfd.png
+
+The injectors themselves use `template.HTML` from `html/template` and combine it with code from `html.go`.
+
 ## GenerateGz
 
 There is a [`generategz`](cmd/generategz/main.go) tool that will scan a directly and pre-compress files to .gz adding a `.gz` extension. If the compressed file is actually bigger it is deleted.
@@ -210,6 +225,70 @@ Running 10s test @ http://localhost:8000/
 Requests/sec: 440814.53
 Transfer/sec:    372.89MB
 ```
+
+## DB
+
+`db.go` offers lightning fast SQLite access by batching writes and carefully optimising settings. This means that writes from different parts of your application actually happen in the same transaction under the hood so if one fails, all will fail. Also, there could be a couple of milliseconds delay on each individual write, in return for better throughput. These could be good tradeoffs for a well-designed application where SQL calls are never expected to result in an error.
+
+It comes with a very simple API:
+
+```
+type DBHandler interface {
+	ExecContext(context.Context, string, args ...any) (sql.Result, error)
+	QueryContext(context.Context, string, args ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, args ...any) *sql.Row
+}
+
+type DBModifier interface {
+	Write(func (DB) error)
+}
+```
+
+Example:
+
+```
+ctx := context.Background()
+db := NewDB()
+
+// Read only queries
+db.ReadDB.ExecContext(ctx)
+db.ReadDB.QueryContext(ctx)
+db.ReadDB.QueryRowContext(ctx)
+
+
+// Batch read/write queries
+var nonSQLErr error
+batchErr := db.Write(func (db DBHandler) error) {
+	// The read/write db object here shadows the read-only outer db one, preventing access
+	if err := db.QueryRowContext(ctx); err != nil {
+		// Returning an error causes the transaction to abort and all other goroutines sharing the transaction to fail too, so you should only return errors from SQL
+		return err
+	}
+
+	nonSQLErr = fmt.Errorf("This is an application level error, not the result of SQL failing")
+}
+if batchErr != nil {
+	fmt.Printf("Batch failed to write. All goroutines that shared it are also aborted.\n")
+} else if nonSQLErr != nil {
+	fmt.Printf("This specific call to Write failed, but not because of an SQL error, so it did not result in the transaciton being aborted.\n")
+}
+```
+
+The default implementation uses the pure Go SQLite driver, but you can switch to the C version by using ading `-tags=sqlitec` to the usual go commands, e.g.:
+
+```
+go test -tags=sqlitec
+```
+
+If you want to see an indication of the throughput, run the tests with `go test -v` and look for these lines:
+
+```
+Starting batch inserting 10000 greetings.
+Completed batch inserting 10000 greetings in 142.976767ms, 69941.433212 greetings per second
+```
+
+You'll get better throughput if you insert around 1,000,000 with a higher concurrency, but you can play with the values to see what works for you.
+
 
 ## Release
 
