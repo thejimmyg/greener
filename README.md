@@ -277,7 +277,7 @@ if batchErr != nil {
 The default implementation uses the pure Go SQLite driver, but you can switch to the C version by using ading `-tags=sqlitec` to the usual go commands, e.g.:
 
 ```
-go test -tags=sqlitec
+go test -tags='sqlitec sqlite_fts5'
 ```
 
 If you want to see an indication of the throughput, run the tests with `go test -v` and look for these lines:
@@ -288,6 +288,16 @@ Completed batch inserting 10000 greetings in 142.976767ms, 69941.433212 greeting
 ```
 
 You'll get better throughput if you insert around 1,000,000 with a higher concurrency, but you can play with the values to see what works for you.
+
+
+## KV
+
+There is a Key Value store implementation built on top of the DB.
+
+
+## Search
+
+There is a full text search implementation build on top of the DB.
 
 
 ## Release
