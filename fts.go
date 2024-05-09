@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-type SearchEngine struct {
+type FTS struct {
 	db *DB
 }
 
@@ -32,7 +32,7 @@ type FacetCount struct {
 	Values []FacetValueCount
 }
 
-func NewSearchEngine(ctx context.Context, db *DB) (*SearchEngine, error) {
+func NewFTS(ctx context.Context, db *DB) (*FTS, error) {
 	// Ensure the FTS table and facet tables exist
 	// _, err = d.ExecContext(ctx, "INSERT INTO document_facets (document_id, facet_id) VALUES (?, ?)", docid, facetID)
 	// search_test.go:64: Error adding facets: Could not insert document_facet: SQL logic error: foreign key mismatch - "document_facets" referencing "documents" (1)
@@ -54,10 +54,10 @@ func NewSearchEngine(ctx context.Context, db *DB) (*SearchEngine, error) {
 			return nil, err
 		}
 	}
-	return &SearchEngine{db: db}, nil
+	return &FTS{db: db}, nil
 }
 
-func (se *SearchEngine) Put(ctx context.Context, docid string, reader io.Reader) error {
+func (se *FTS) Put(ctx context.Context, docid string, reader io.Reader) error {
 	content, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func (se *SearchEngine) Put(ctx context.Context, docid string, reader io.Reader)
 	return nil
 }
 
-func (se *SearchEngine) Delete(ctx context.Context, docid string) error {
+func (se *FTS) Delete(ctx context.Context, docid string) error {
 	err := se.db.Write(func(d DBHandler) error {
 		_, err := d.ExecContext(ctx, "DELETE FROM documents WHERE docid = ?", docid)
 		return err
@@ -103,7 +103,7 @@ func (se *SearchEngine) Delete(ctx context.Context, docid string) error {
 	return nil
 }
 
-func (se *SearchEngine) Get(ctx context.Context, docid string) (io.Reader, error) {
+func (se *FTS) Get(ctx context.Context, docid string) (io.Reader, error) {
 	var content string
 	row := se.db.ReadDB.QueryRowContext(ctx, "SELECT content FROM documents WHERE docid = ?", docid)
 	if err := row.Scan(&content); err != nil {
@@ -115,7 +115,7 @@ func (se *SearchEngine) Get(ctx context.Context, docid string) (io.Reader, error
 	return strings.NewReader(content), nil
 }
 
-func (se *SearchEngine) Search(ctx context.Context, query string) ([]map[string]string, error) {
+func (se *FTS) Search(ctx context.Context, query string) ([]map[string]string, error) {
 	rows, err := se.db.ReadDB.Query("SELECT docid, snippet(documents, 0, '<b>', '</b>', '...', 64) FROM documents WHERE documents MATCH ? ORDER BY rank", query)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (se *SearchEngine) Search(ctx context.Context, query string) ([]map[string]
 	return results, nil
 }
 
-func (se *SearchEngine) AddFacets(ctx context.Context, docid string, facets []Facet) error {
+func (se *FTS) AddFacets(ctx context.Context, docid string, facets []Facet) error {
 	for _, facet := range facets {
 		err := se.db.Write(func(d DBHandler) error {
 			result, err := d.ExecContext(ctx, "INSERT INTO facets (name, value) VALUES (?, ?) ON CONFLICT(name, value) DO NOTHING", facet.Name, facet.Value)
@@ -167,7 +167,7 @@ func (se *SearchEngine) AddFacets(ctx context.Context, docid string, facets []Fa
 	return nil
 }
 
-func (se *SearchEngine) GetFacetCounts(ctx context.Context, docIDs []string) ([]FacetCount, error) {
+func (se *FTS) GetFacetCounts(ctx context.Context, docIDs []string) ([]FacetCount, error) {
 	if len(docIDs) == 0 {
 		return []FacetCount{}, nil
 	}

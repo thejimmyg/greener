@@ -41,7 +41,7 @@ func TestSearch(t *testing.T) {
 		}
 	})
 
-	se, err := NewSearchEngine(ctx, db)
+	se, err := NewFTS(ctx, db)
 	if err != nil {
 		t.Error(err)
 	}

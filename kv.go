@@ -1,6 +1,6 @@
 // rm kvstore.db; go run cmd/kvstore/main.go
 // Note: If you make create/drop tables outside of this code, it won't notice until you restart. You therefore shouldn't do that.
-// Also an application should only have one SQLiteKVStore, otherwise the mutex won't behave correclty and you may get database is locked errors due to multiple writers.
+// Also an application should only have one KV, otherwise the mutex won't behave correclty and you may get database is locked errors due to multiple writers.
 
 package greener
 
@@ -66,14 +66,14 @@ type KvStore interface {
 	Get(pk, sk string) (JSONValue, *time.Time, error)
 }
 
-// SQLiteKVStore keeps track of KVstore tables and manages the database connection.
-type SQLiteKVStore struct {
+// KV keeps track of KVstore tables and manages the database connection.
+type KV struct {
 	db *DB
 }
 
-// NewSQLiteKVStore initializes and returns a new SQLiteKVStore.
-func NewSQLiteKVStore(ctx context.Context, db *DB) (*SQLiteKVStore, error) {
-	tm := &SQLiteKVStore{
+// NewKV initializes and returns a new KV.
+func NewKV(ctx context.Context, db *DB) (*KV, error) {
+	tm := &KV{
 		db: db,
 	}
 
@@ -90,7 +90,7 @@ func NewSQLiteKVStore(ctx context.Context, db *DB) (*SQLiteKVStore, error) {
 }
 
 // There would be a race condition here, but since Put/Create/Delete all obtain an exclusive mutex, and since they are the only functions that call it, we're OK.
-func (tm *SQLiteKVStore) ensureTableExists(ctx context.Context, tableName string, writeDB DBHandler) error {
+func (tm *KV) ensureTableExists(ctx context.Context, tableName string, writeDB DBHandler) error {
 	createTableSQL := fmt.Sprintf(`
         CREATE TABLE IF NOT EXISTS %s (
             pk TEXT NOT NULL,
@@ -109,7 +109,7 @@ func (tm *SQLiteKVStore) ensureTableExists(ctx context.Context, tableName string
 }
 
 // StartCleanupRoutine runs a goroutine that periodically deletes expired rows from KVstore tables.
-func (tm *SQLiteKVStore) StartCleanupRoutine(ctx context.Context) {
+func (tm *KV) StartCleanupRoutine(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	go func() {
 		for {
@@ -133,7 +133,7 @@ func (tm *SQLiteKVStore) StartCleanupRoutine(ctx context.Context) {
 	}()
 }
 
-func (tm *SQLiteKVStore) putOrCreate(ctx context.Context, pk string, sk string, data JSONValue, expires *time.Time, allowUpdate bool) error {
+func (tm *KV) putOrCreate(ctx context.Context, pk string, sk string, data JSONValue, expires *time.Time, allowUpdate bool) error {
 
 	tableName := "kv"
 	changed := true
@@ -194,17 +194,17 @@ func (tm *SQLiteKVStore) putOrCreate(ctx context.Context, pk string, sk string, 
 }
 
 // Put inserts or updates a row with the given pk, sk, data, and expires.
-func (tm *SQLiteKVStore) Put(ctx context.Context, pk string, sk string, data JSONValue, expires *time.Time) error {
+func (tm *KV) Put(ctx context.Context, pk string, sk string, data JSONValue, expires *time.Time) error {
 	return tm.putOrCreate(ctx, pk, sk, data, expires, true) // true allows updates
 }
 
 // Create inserts a row with the given pk, sk, data, and expires, but fails if the row already exists.
-func (tm *SQLiteKVStore) Create(ctx context.Context, pk string, sk string, data JSONValue, expires *time.Time) error {
+func (tm *KV) Create(ctx context.Context, pk string, sk string, data JSONValue, expires *time.Time) error {
 	return tm.putOrCreate(ctx, pk, sk, data, expires, false) // false disallows updates, failing on conflict
 }
 
 // Get retrieves a row with the given pk and sk. It returns the data and expires if the row exists and is not expired.
-func (tm *SQLiteKVStore) Get(ctx context.Context, pk string, sk string) (JSONValue, *time.Time, error) {
+func (tm *KV) Get(ctx context.Context, pk string, sk string) (JSONValue, *time.Time, error) {
 	tableName := "kv"
 
 	querySQL := fmt.Sprintf(`
@@ -236,7 +236,7 @@ func (tm *SQLiteKVStore) Get(ctx context.Context, pk string, sk string) (JSONVal
 }
 
 // Delete removes a row with the given pk and sk from the table.
-func (tm *SQLiteKVStore) Delete(ctx context.Context, pk string, sk string) error {
+func (tm *KV) Delete(ctx context.Context, pk string, sk string) error {
 	tableName := "kv"
 
 	// Prepare the DELETE statement
@@ -258,7 +258,7 @@ func (tm *SQLiteKVStore) Delete(ctx context.Context, pk string, sk string) error
 // Iterate over rows in a table based on primary key and sort key.
 // If 'after' is true, search for rows with sort keys strictly greater than 'sk'.
 // Otherwise, include rows with sort keys greater than or equal to 'sk'.
-func (tm *SQLiteKVStore) Iterate(ctx context.Context, pk, sk string, limit int, after bool) ([]Row, string, error) {
+func (tm *KV) Iterate(ctx context.Context, pk, sk string, limit int, after bool) ([]Row, string, error) {
 	tableName := "kv"
 
 	var rows []Row

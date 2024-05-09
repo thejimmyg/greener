@@ -1,6 +1,6 @@
 // rm kvstore.db; go run cmd/kvstore/main.go
 // Note: If you make create/drop tables outside of this code, it won't notice until you restart. You therefore shouldn't do that.
-// Also an application should only have one SQLiteKVStore, otherwise the mutex won't behave correclty and you may get database is locked errors due to multiple writers.
+// Also an application should only have one KV, otherwise the mutex won't behave correclty and you may get database is locked errors due to multiple writers.
 
 package greener_test
 
@@ -51,7 +51,7 @@ func TestKVStore(t *testing.T) {
 		}
 	})
 
-	tm, err := greener.NewSQLiteKVStore(ctx, db)
+	tm, err := greener.NewKV(ctx, db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,10 +363,10 @@ func TestKVStore(t *testing.T) {
 
 	// Finally check table loading:
 
-	// // Load another SQLiteKVStore instance
-	// newTM, err := NewSQLiteKVStore(db)
+	// // Load another KV instance
+	// newTM, err := NewKV(db)
 	// if err != nil {
-	// 	t.Fatalf("Failed to create a new SQLiteKVStore: %v", err)
+	// 	t.Fatalf("Failed to create a new KV: %v", err)
 	// }
 
 	// // Manually check for the existence of the test and example tables
