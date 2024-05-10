@@ -154,7 +154,8 @@ func NewDefaultUISupport(style, script, serviceWorker string) *DefaultUISupport 
 
 type DefaultStyleInjector struct {
 	Logger
-	uiSupports []UISupport
+	uiSupports   []UISupport
+	cacheSeconds int
 }
 
 func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
@@ -165,7 +166,7 @@ func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
 	style := buffer.Bytes()
 	if style != nil {
 		d.Logf("Injecting route and HTML for styles")
-		ch := NewContentHandler(d.Logger, style, "text/css", "", 60*60*8) // Cache for 8 hours
+		ch := NewContentHandler(d.Logger, style, "text/css", "", d.cacheSeconds)
 		app.Handle("/style-"+ch.Hash()+".css", ch)
 		return template.HTML(`
     <link rel="stylesheet" href="/style-` + ch.Hash() + `.css">`), template.HTML("")
@@ -174,13 +175,14 @@ func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
 		return template.HTML(""), template.HTML("")
 	}
 }
-func NewDefaultStyleInjector(logger Logger, uiSupports []UISupport) *DefaultStyleInjector {
-	return &DefaultStyleInjector{Logger: logger, uiSupports: uiSupports}
+func NewDefaultStyleInjector(logger Logger, uiSupports []UISupport, cacheSeconds int) *DefaultStyleInjector {
+	return &DefaultStyleInjector{Logger: logger, uiSupports: uiSupports, cacheSeconds: cacheSeconds}
 }
 
 type DefaultScriptInjector struct {
 	Logger
-	uiSupports []UISupport
+	uiSupports   []UISupport
+	cacheSeconds int
 }
 
 func (d *DefaultScriptInjector) Inject(app App) (template.HTML, template.HTML) {
@@ -219,7 +221,7 @@ if ('serviceWorker' in navigator) {
 	script := buffer.Bytes()
 	if script != nil {
 		d.Logf("Injecting route and HTML for script")
-		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "", 60*60*8) // Cache for 8 hours
+		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "", d.cacheSeconds)
 		app.Handle("/script-"+ch.Hash()+".js", ch)
 		return template.HTML(""), template.HTML(`
     <script src="/script-` + ch.Hash() + `.js"></script>`)
@@ -229,8 +231,8 @@ if ('serviceWorker' in navigator) {
 	}
 }
 
-func NewDefaultScriptInjector(logger Logger, uiSupports []UISupport) *DefaultScriptInjector {
-	return &DefaultScriptInjector{Logger: logger, uiSupports: uiSupports}
+func NewDefaultScriptInjector(logger Logger, uiSupports []UISupport, cacheSeconds int) *DefaultScriptInjector {
+	return &DefaultScriptInjector{Logger: logger, uiSupports: uiSupports, cacheSeconds: cacheSeconds}
 }
 
 type DefaultThemeColorInjector struct {
@@ -325,6 +327,7 @@ type DefaultManifestInjector struct {
 	Logger
 	appShortName string
 	themeColor   string
+	cacheSeconds int
 }
 
 func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML) {
@@ -368,14 +371,14 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
 		panic("Could not generate JSON for the manifest. Perhaps a problem with the config?")
 	}
 	d.Logf("Adding route for manifest")
-	ch := NewContentHandler(d.Logger, manifest, "application/json", "", 60*60*8) // Cache for 8 hours
+	ch := NewContentHandler(d.Logger, manifest, "application/json", "", d.cacheSeconds)
 	app.Handle("/manifest-"+ch.Hash()+".json", ch)
 	return template.HTML(`
     <link rel="manifest" href="/manifest-` + ch.Hash() + `.json">`), template.HTML("")
 }
 
-func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string) *DefaultManifestInjector {
-	return &DefaultManifestInjector{Logger: logger, appShortName: appShortName, themeColor: themeColor}
+func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string, cacheSeconds int) *DefaultManifestInjector {
+	return &DefaultManifestInjector{Logger: logger, appShortName: appShortName, themeColor: themeColor, cacheSeconds: cacheSeconds}
 }
 
 // Injectors prepares an HTML page string (to be used with HTMLPrintf) from a slice of Injector.

@@ -144,12 +144,42 @@ func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", c.contentType)
 	w.Header().Set("Content-Length", contentLength)
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", c.cacheSeconds))
+	if c.cacheSeconds > 0 {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", c.cacheSeconds))
+	}
 	if contentEncoding != "" {
 		w.Header().Set("Content-Encoding", contentEncoding)
 	}
 
+	// Set ETag header
+	etag := "\"" + c.Hash() + "\"" // Adding quotes around the ETag as per the HTTP ETag format
+	w.Header().Set("ETag", etag)
+	// Check if the client has sent the If-None-Match header and compare the ETag
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if match = strings.TrimSpace(match); etagMatch(match, etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	// Send the content as the ETag did not match or was not provided
 	w.Write(contentBytes)
+}
+
+func etagMatch(header, etag string) bool {
+	etags := strings.Split(header, ",")
+	for _, e := range etags {
+		trimmedEtag := strings.TrimSpace(e)
+		// Remove surrounding quotes for a standardized comparison
+		if len(trimmedEtag) >= 2 && trimmedEtag[0] == '"' && trimmedEtag[len(trimmedEtag)-1] == '"' {
+			trimmedEtag = trimmedEtag[1 : len(trimmedEtag)-1]
+		}
+		// Compare without quotes
+		if trimmedEtag == strings.Trim(etag, "\"") {
+			return true
+		}
+	}
+	return false
 }
 
 // StaticContentHandler prepares and serves the most appropriate content-encoding using an etag and can return 304 not modified responses as needed.

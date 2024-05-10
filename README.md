@@ -140,8 +140,7 @@ NOTE: Only the manifest.json, style.css and script.js are served with a `NewCont
 
 Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injectors that use `NewContentHandler` and `StaticContentHandler` in action.
 
-QUESTION: Should `NewContentHandler` support etag caching too just in case the browser somehow messes up the 1 year cache and requests it again, or is that unnecessary?
-
+In NewContentHandler, when serving with a cache time, etags are still supported so that if the cache has expired and the content hasn't changed the server doesn't need to send it again.
 
 Injectors:
 
@@ -340,3 +339,7 @@ git push origin main
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+## Issues
+
+* Not all etags are properly quoted

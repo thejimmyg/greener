@@ -77,14 +77,15 @@ func main() {
 	appShortName := "Simple"
 	config := greener.NewDefaultServeConfigProviderFromEnvironment()
 	logger := greener.NewDefaultLogger(log.Printf)
+	cacheSeconds := 5 // In real life you might set this to a day, a month or a year perhaps
 	injectors := []greener.Injector{
-		greener.NewDefaultStyleInjector(logger, uiSupport),
-		greener.NewDefaultScriptInjector(logger, uiSupport),
+		greener.NewDefaultStyleInjector(logger, uiSupport, cacheSeconds),
+		greener.NewDefaultScriptInjector(logger, uiSupport, cacheSeconds),
 		greener.NewDefaultThemeColorInjector(logger, themeColor),
 		greener.NewDefaultSEOInjector(logger, "A web app"),
 		greener.NewDefaultIconsInjector(logger, wwwFS, "icons/favicon-512x512.png"),
 		greener.NewDefaultLegacyFaviconInjector(logger, wwwFS, "icons/favicon-512x512.png"),
-		greener.NewDefaultManifestInjector(logger, appShortName, themeColor),
+		greener.NewDefaultManifestInjector(logger, appShortName, themeColor, cacheSeconds),
 	}
 	emptyPageProvider := greener.NewDefaultEmptyPageProvider(injectors)
 	static := greener.NewCompressedFileHandler(http.FS(wwwFS))
