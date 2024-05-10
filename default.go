@@ -208,11 +208,11 @@ if ('serviceWorker' in navigator) {
 	}
 	script := buffer.Bytes()
 	if script != nil {
-		d.Logf("Adding route for /script.js")
-		app.HandleFunc("/script.js", StaticContentHandler(d.Logger, script, "text/javascript; charset=utf-8"))
-
+		d.Logf("Adding route for script")
+		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "")
+		app.Handle("/script-"+ch.Hash()+".js", ch)
 		return template.HTML(""), template.HTML(`
-    <script src="/script.js"></script>`)
+    <script src="/script-` + ch.Hash() + `.js"></script>`)
 	} else {
 		d.Logf("No scripts specified")
 		return template.HTML(""), template.HTML("")

@@ -135,7 +135,7 @@ Greener can help with each of these steps.
 
 * The `UISupport` interface embeds `StyleProvider`, `ScriptProvider` and `ServiceWorkerProvider`. The `NewDefaultUISupport()` method allows you to specify `style`, `script` and `serviceWorker` content. Then `DefaultStyleInjector`, `DefaultScriptInjector` and `DefaultServiceWorkerInjector` can be passed all the `UISupport`s in order to assemble a single `style.css`, `script.js` and `service-worker.js` and then to serve them either at a fixed location with etag caching and content compression (`StaticContentHandler`) or to serve them at a path based on their hash with a 1 year fixed cache and content compression (`NewContentHandler`).
 
-NOTE: Only the style.css is served with a `NewContentHandler` at the moment. The others are served with e-tag caching using `StaticContentHandler` but this should be changed since neither `script.js` nor `service-worker.js` need to be at a fixed path, it is just that `service-worker.js` need to be served directly from `/` so that hash has to form part of the filename, not a path component, but that's fine.
+NOTE: Only the style.css and script.js are served with a `NewContentHandler` at the moment. The others are served with e-tag caching using `StaticContentHandler` but this should be changed since neither icons, manifest nor `service-worker.js` need to be at a fixed path, it is just that `service-worker.js` need to be served directly from `/` so that hash has to form part of the filename, not a path component, but that's fine.
 
 
 Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injectors that use `NewContentHandler` and `StaticContentHandler` in action.
