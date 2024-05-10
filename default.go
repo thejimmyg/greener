@@ -301,8 +301,7 @@ type DefaultManifestInjector struct {
 }
 
 func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML) {
-	d.Logf("Adding manifest to HTML")
-	app.HandleFunc("/manifest.json", StaticContentHandler(d.Logger, []byte(fmt.Sprintf(`{
+	manifest := []byte(fmt.Sprintf(`{
   "name": "%s",
   "short_name": "%s",
   "start_url": "/start",
@@ -319,9 +318,13 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
       "type": "image/png"
     }
   ]
-}`, d.appShortName, d.appShortName)), "application/json"))
+}`, d.appShortName, d.appShortName))
+
+	d.Logf("Adding route for manifest")
+	ch := NewContentHandler(d.Logger, manifest, "application/json", "")
+	app.Handle("/manifest-"+ch.Hash()+".json", ch)
 	return template.HTML(`
-    <link rel="manifest" href="/manifest.json">`), template.HTML("")
+    <link rel="manifest" href="/manifest-` + ch.Hash() + `.json">`), template.HTML("")
 }
 
 func NewDefaultManifestInjector(logger Logger, appShortName string) *DefaultManifestInjector {
