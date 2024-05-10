@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -168,8 +169,8 @@ func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
 		d.Logf("Injecting route and HTML for styles")
 		ch := NewContentHandler(d.Logger, style, "text/css", "", d.cacheSeconds)
 		app.Handle("/style-"+ch.Hash()+".css", ch)
-		return template.HTML(`
-    <link rel="stylesheet" href="/style-` + ch.Hash() + `.css">`), template.HTML("")
+		return HTMLPrintf(`
+    <link rel="stylesheet" href="/style-%s.css">`, Text(url.PathEscape(ch.Hash()))), template.HTML("")
 	} else {
 		d.Logf("No styles specified")
 		return template.HTML(""), template.HTML("")
@@ -223,8 +224,8 @@ if ('serviceWorker' in navigator) {
 		d.Logf("Injecting route and HTML for script")
 		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "", d.cacheSeconds)
 		app.Handle("/script-"+ch.Hash()+".js", ch)
-		return template.HTML(""), template.HTML(`
-    <script src="/script-` + ch.Hash() + `.js"></script>`)
+		return template.HTML(""), HTMLPrintf(`
+    <script src="/script-%s.js"></script>`, Text(url.PathEscape(ch.Hash())))
 	} else {
 		d.Logf("No scripts specified")
 		return template.HTML(""), template.HTML("")
@@ -373,8 +374,8 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
 	d.Logf("Adding route for manifest")
 	ch := NewContentHandler(d.Logger, manifest, "application/json", "", d.cacheSeconds)
 	app.Handle("/manifest-"+ch.Hash()+".json", ch)
-	return template.HTML(`
-    <link rel="manifest" href="/manifest-` + ch.Hash() + `.json">`), template.HTML("")
+	return HTMLPrintf(`
+    <link rel="manifest" href="/manifest-%s.json">`, Text(url.PathEscape(ch.Hash()))), template.HTML("")
 }
 
 func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string, cacheSeconds int) *DefaultManifestInjector {
