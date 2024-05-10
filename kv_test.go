@@ -41,7 +41,7 @@ func TestKVStore(t *testing.T) {
 
 	dbPath := filepath.Join(tempDir, "kvstore.db")
 
-	db, err := greener.NewDB(dbPath, 3)
+	db, err := greener.NewBatchDB(dbPath, 3)
 	if err != nil {
 		t.Fatalf("Error creating the database connections: %v", err)
 	}

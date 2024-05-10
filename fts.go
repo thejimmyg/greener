@@ -14,7 +14,7 @@ import (
 )
 
 type FTS struct {
-	db *DB
+	db DB
 }
 
 type Facet struct {
@@ -32,7 +32,7 @@ type FacetCount struct {
 	Values []FacetValueCount
 }
 
-func NewFTS(ctx context.Context, db *DB) (*FTS, error) {
+func NewFTS(ctx context.Context, db DB) (*FTS, error) {
 	// Ensure the FTS table and facet tables exist
 	// _, err = d.ExecContext(ctx, "INSERT INTO document_facets (document_id, facet_id) VALUES (?, ?)", docid, facetID)
 	// search_test.go:64: Error adding facets: Could not insert document_facet: SQL logic error: foreign key mismatch - "document_facets" referencing "documents" (1)
@@ -105,7 +105,7 @@ func (se *FTS) Delete(ctx context.Context, docid string) error {
 
 func (se *FTS) Get(ctx context.Context, docid string) (io.Reader, error) {
 	var content string
-	row := se.db.ReadDB.QueryRowContext(ctx, "SELECT content FROM documents WHERE docid = ?", docid)
+	row := se.db.QueryRowContext(ctx, "SELECT content FROM documents WHERE docid = ?", docid)
 	if err := row.Scan(&content); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("document not found")
@@ -116,7 +116,7 @@ func (se *FTS) Get(ctx context.Context, docid string) (io.Reader, error) {
 }
 
 func (se *FTS) Search(ctx context.Context, query string) ([]map[string]string, error) {
-	rows, err := se.db.ReadDB.Query("SELECT docid, snippet(documents, 0, '<b>', '</b>', '...', 64) FROM documents WHERE documents MATCH ? ORDER BY rank", query)
+	rows, err := se.db.QueryContext(ctx, "SELECT docid, snippet(documents, 0, '<b>', '</b>', '...', 64) FROM documents WHERE documents MATCH ? ORDER BY rank", query)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (se *FTS) GetFacetCounts(ctx context.Context, docIDs []string) ([]FacetCoun
 	inParams := strings.Repeat("?,", len(docIDs)-1) + "?"
 	query := fmt.Sprintf("SELECT f.name, f.value, COUNT(*) as count FROM document_facets df JOIN facets f ON df.facet_id = f.id WHERE df.document_id IN (%s) GROUP BY f.name, f.value ORDER BY f.name, count DESC", inParams)
 
-	rows, err := se.db.ReadDB.QueryContext(ctx, query, stringsToInterfaces(docIDs)...)
+	rows, err := se.db.QueryContext(ctx, query, stringsToInterfaces(docIDs)...)
 	if err != nil {
 		return nil, err
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/thejimmyg/greener"
 )
 
-func TestDB(t *testing.T) {
+func TestBatchDB(t *testing.T) {
 	t.Parallel()
 
 	const count = 10_000
@@ -32,9 +32,9 @@ func TestDB(t *testing.T) {
 	})
 
 	dbPath := filepath.Join(tempDir, "test.db")
-	t.Logf("DB path: %s", dbPath)
+	t.Logf("Batch DB path: %s", dbPath)
 
-	db, err := greener.NewDB(dbPath, 3)
+	db, err := greener.NewBatchDB(dbPath, 3)
 	if err != nil {
 		t.Fatalf("Error creating the database connections: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestDB(t *testing.T) {
 
 	// Simplified read operations using ReadDB directly
 	selectSQL := `SELECT greeting FROM greetings`
-	rows, err := db.ReadDB.QueryContext(ctx, selectSQL)
+	rows, err := db.QueryContext(ctx, selectSQL)
 	if err != nil {
 		t.Fatal(err)
 	}

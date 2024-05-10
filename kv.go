@@ -68,11 +68,11 @@ type KvStore interface {
 
 // KV keeps track of KVstore tables and manages the database connection.
 type KV struct {
-	db *DB
+	db DB
 }
 
 // NewKV initializes and returns a new KV.
-func NewKV(ctx context.Context, db *DB) (*KV, error) {
+func NewKV(ctx context.Context, db DB) (*KV, error) {
 	tm := &KV{
 		db: db,
 	}
@@ -213,7 +213,7 @@ func (tm *KV) Get(ctx context.Context, pk string, sk string) (JSONValue, *time.T
 
 	var jsonData string
 	var expiresUnix sql.NullInt64
-	err := tm.db.ReadDB.QueryRowContext(ctx, querySQL, pk, sk, time.Now().Unix()).Scan(&jsonData, &expiresUnix)
+	err := tm.db.QueryRowContext(ctx, querySQL, pk, sk, time.Now().Unix()).Scan(&jsonData, &expiresUnix)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil, fmt.Errorf("no matching row found")
@@ -286,7 +286,7 @@ func (tm *KV) Iterate(ctx context.Context, pk, sk string, limit int, after bool)
 		args = []interface{}{pk, time.Now().Unix(), limit}
 	}
 
-	sqlRows, err := tm.db.ReadDB.QueryContext(ctx, querySQL, args...)
+	sqlRows, err := tm.db.QueryContext(ctx, querySQL, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("error executing iterate query: %w", err)
 	}

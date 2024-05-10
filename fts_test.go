@@ -29,9 +29,9 @@ func TestSearch(t *testing.T) {
 	})
 
 	searchDbPath := filepath.Join(tempDir, "search.db")
-	t.Logf("Search DB path: %s", searchDbPath)
+	t.Logf("Search Batch DB path: %s", searchDbPath)
 
-	db, err := NewDB(searchDbPath, 3)
+	db, err := NewBatchDB(searchDbPath, 3)
 	if err != nil {
 		t.Fatalf("Error creating the database connections: %v", err)
 	}

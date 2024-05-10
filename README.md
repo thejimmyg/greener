@@ -226,9 +226,9 @@ Requests/sec: 440814.53
 Transfer/sec:    372.89MB
 ```
 
-## DB
+## Batch DB
 
-`db.go` offers lightning fast SQLite access by batching writes and carefully optimising settings. This means that writes from different parts of your application actually happen in the same transaction under the hood so if one fails, all will fail. Also, there could be a couple of milliseconds delay on each individual write, in return for better throughput. These could be good tradeoffs for a well-designed application where SQL calls are never expected to result in an error.
+The `BatchDB` is a low level interface used by `KV` and `FTS`. It offers lightning fast SQLite access by batching writes and carefully optimising settings. This means that writes from different parts of your application actually happen in the same transaction under the hood so if one fails, all will fail. Also, there could be a couple of milliseconds delay on each individual write, in return for better throughput. These are good tradeoffs for `KV` and `FTS` where SQL calls are never expected to result in an error. It would be less good for application code where you have to be very careful that errors are correctly returned, otherwise other parts of the code using the same batch DB might silently fail.
 
 It comes with a very simple API:
 
@@ -240,7 +240,7 @@ type DBHandler interface {
 }
 
 type DBModifier interface {
-	Write(func (DB) error)
+	Write(func (DB) error) error
 }
 ```
 
@@ -251,12 +251,12 @@ ctx := context.Background()
 db := NewDB()
 
 // Read only queries
-db.ReadDB.ExecContext(ctx)
-db.ReadDB.QueryContext(ctx)
-db.ReadDB.QueryRowContext(ctx)
+db.ExecContext(ctx)
+db.QueryContext(ctx)
+db.QueryRowContext(ctx)
 
 
-// Batch read/write queries
+// Batch read/write queries guaranteed to all be in the same transaction
 var nonSQLErr error
 batchErr := db.Write(func (db DBHandler) error) {
 	// The read/write db object here shadows the read-only outer db one, preventing access

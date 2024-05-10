@@ -163,7 +163,7 @@ func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
 	}
 	style := buffer.Bytes()
 	if style != nil {
-		d.Logf("Adding route for styles")
+		d.Logf("Injecting route and HTML for styles")
 		ch := NewContentHandler(d.Logger, style, "text/css", "")
 		app.Handle("/style-"+ch.Hash()+".css", ch)
 		return template.HTML(`
@@ -208,7 +208,7 @@ if ('serviceWorker' in navigator) {
 	}
 	script := buffer.Bytes()
 	if script != nil {
-		d.Logf("Adding route for script")
+		d.Logf("Injecting route and HTML for script")
 		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "")
 		app.Handle("/script-"+ch.Hash()+".js", ch)
 		return template.HTML(""), template.HTML(`
@@ -234,7 +234,7 @@ func (d *DefaultServiceWorkerInjector) Inject(app App) (template.HTML, template.
 	}
 	serviceWorker := buffer.Bytes()
 	if serviceWorker != nil {
-		d.Logf("Adding route for /service-worker.js")
+		d.Logf("Injecting route for /service-worker.js")
 		app.HandleFunc("/service-worker.js", StaticContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8"))
 		return template.HTML(""), template.HTML("")
 	} else {
@@ -253,7 +253,7 @@ type DefaultThemeColorInjector struct {
 }
 
 func (d *DefaultThemeColorInjector) Inject(app App) (template.HTML, template.HTML) {
-	d.Logf("Adding theme color")
+	d.Logf("Injecting HTML for theme color")
 	return HTMLPrintf(`
     <meta name="msapplication-TileColor" content="%s">
     <meta name="theme-color" content="%s">`, Text(d.themeColor), Text(d.themeColor)), template.HTML("")
@@ -270,7 +270,7 @@ type DefaultIconsInjector struct {
 }
 
 func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
-	d.Logf("Adding icons to HTML")
+	d.Logf("Injecting route and HTML for png icons")
 	fileIcon512, err := fs.ReadFile(d.iconFS, d.icon512Path)
 	if err != nil {
 		d.Logf("Failed to open source image for favicon: %v", err)
@@ -296,7 +296,7 @@ type DefaultLegacyFaviconInjector struct {
 }
 
 func (d *DefaultLegacyFaviconInjector) Inject(app App) (template.HTML, template.HTML) {
-	d.Logf("Adding legacy favicon to HTML")
+	d.Logf("Injecting route and HTML for legacy /favicon.ico to HTML")
 	fileIcon512, err := fs.ReadFile(d.iconFS, d.icon512Path)
 	if err != nil {
 		d.Logf("Failed to open source image for favicon: %v", err)

@@ -39,15 +39,31 @@ type writeRequest struct {
 	fn   func(DBHandler) error
 }
 
-type DB struct {
-	ReadDB        *sql.DB
+type DBHandler interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+}
+
+type DBModifier interface {
+	Write(func(DBHandler) error) error
+}
+
+type DB interface {
+	DBHandler
+	DBModifier
+}
+
+type BatchDB struct {
+	DBHandler
+	readDB        *sql.DB
 	writeDB       *sql.DB
 	writeDBLock   sync.Mutex
 	writeRequests chan writeRequest
 	flushTimeout  time.Duration
 }
 
-func NewDB(path string, flushTimeout time.Duration) (*DB, error) {
+func NewBatchDB(path string, flushTimeout time.Duration) (*BatchDB, error) {
 
 	connectionURL := newSQLiteConnectionURL(path)
 	// fmt.Println(connectionURL)
@@ -75,8 +91,9 @@ func NewDB(path string, flushTimeout time.Duration) (*DB, error) {
 		return nil, err
 	}
 
-	db := &DB{
-		ReadDB:        ReadDB,
+	db := &BatchDB{
+		DBHandler:     ReadDB,
+		readDB:        ReadDB,
 		writeDB:       writeDB,
 		writeRequests: make(chan writeRequest),
 		flushTimeout:  flushTimeout,
@@ -86,7 +103,7 @@ func NewDB(path string, flushTimeout time.Duration) (*DB, error) {
 	return db, nil
 }
 
-func (db *DB) batchProcessor() {
+func (db *BatchDB) batchProcessor() {
 	var requests []writeRequest
 	var currentTx *sql.Tx
 	timer := time.NewTicker(db.flushTimeout * time.Millisecond)
@@ -131,28 +148,7 @@ func (db *DB) batchProcessor() {
 	}
 }
 
-func (db *DB) Close() error {
-	rerr := db.ReadDB.Close()
-	db.writeDBLock.Lock()
-	defer db.writeDBLock.Unlock()
-	werr := db.writeDB.Close()
-	if rerr != nil || werr != nil {
-		return fmt.Errorf("Error closing connections. Write DB Err: %v. Read DB err: %v.\n", werr, rerr)
-	}
-	return nil
-}
-
-type DBHandler interface {
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
-}
-
-type DBModifier interface {
-	Write(func(DB) error)
-}
-
-func (db *DB) Write(fn func(DBHandler) error) error {
+func (db *BatchDB) Write(fn func(DBHandler) error) error {
 	respChan := make(chan error)
 	req := writeRequest{
 		fn:   fn,
@@ -161,4 +157,15 @@ func (db *DB) Write(fn func(DBHandler) error) error {
 	db.writeRequests <- req
 	err := <-respChan
 	return err
+}
+
+func (db *BatchDB) Close() error {
+	rerr := db.readDB.Close()
+	db.writeDBLock.Lock()
+	defer db.writeDBLock.Unlock()
+	werr := db.writeDB.Close()
+	if rerr != nil || werr != nil {
+		return fmt.Errorf("Error closing connections. Write DB Err: %v. Read DB err: %v.\n", werr, rerr)
+	}
+	return nil
 }
