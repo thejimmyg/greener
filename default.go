@@ -265,12 +265,13 @@ func NewDefaultThemeColorInjector(logger Logger, themeColor string) *DefaultThem
 
 type DefaultIconsInjector struct {
 	Logger
-	wwwFS fs.FS
+	iconFS      fs.FS
+	icon512Path string
 }
 
 func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
 	d.Logf("Adding icons to HTML")
-	fileIcon512, err := fs.ReadFile(d.wwwFS, "icons/favicon-512x512.png")
+	fileIcon512, err := fs.ReadFile(d.iconFS, d.icon512Path)
 	if err != nil {
 		d.Logf("Failed to open source image for favicon: %v", err)
 		return template.HTML(""), template.HTML("")
@@ -290,8 +291,8 @@ func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
     <link rel="shortcut icon" href="/favicon.ico">`), template.HTML("")
 }
 
-func NewDefaultIconsInjector(logger Logger, wwwFS fs.FS) *DefaultIconsInjector {
-	return &DefaultIconsInjector{Logger: logger, wwwFS: wwwFS}
+func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string) *DefaultIconsInjector {
+	return &DefaultIconsInjector{Logger: logger, iconFS: iconFS, icon512Path: icon512Path}
 }
 
 type DefaultManifestInjector struct {
