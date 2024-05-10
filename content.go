@@ -29,10 +29,11 @@ type contentHandler struct {
 	gzipContent   []byte
 	brotliContent []byte
 	logger        Logger
+	cacheSeconds  int
 }
 
 // NewContentHandler returns a struct containing a hash of the content as well as gzip and brotli compressed content encodings. It implements http.Handler for serving the most appropriate content encoding based on the request.
-func NewContentHandler(logger Logger, content []byte, contentType, salt string) ContentHandler {
+func NewContentHandler(logger Logger, content []byte, contentType, salt string, cacheSeconds int) ContentHandler {
 	// Hash the content with salt
 	hash := hashContentWithSalt(content, salt) // New hashing function
 
@@ -57,6 +58,7 @@ func NewContentHandler(logger Logger, content []byte, contentType, salt string) 
 		content:       originalBytes,
 		gzipContent:   gzipContent,
 		brotliContent: brotliContent,
+		cacheSeconds:  cacheSeconds,
 	}
 }
 
@@ -142,7 +144,7 @@ func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", c.contentType)
 	w.Header().Set("Content-Length", contentLength)
-	w.Header().Set("Cache-Control", "public, max-age=31536000") // One year max-age
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", c.cacheSeconds))
 	if contentEncoding != "" {
 		w.Header().Set("Content-Encoding", contentEncoding)
 	}

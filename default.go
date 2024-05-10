@@ -165,7 +165,7 @@ func (d *DefaultStyleInjector) Inject(app App) (template.HTML, template.HTML) {
 	style := buffer.Bytes()
 	if style != nil {
 		d.Logf("Injecting route and HTML for styles")
-		ch := NewContentHandler(d.Logger, style, "text/css", "")
+		ch := NewContentHandler(d.Logger, style, "text/css", "", 60*60*8) // Cache for 8 hours
 		app.Handle("/style-"+ch.Hash()+".css", ch)
 		return template.HTML(`
     <link rel="stylesheet" href="/style-` + ch.Hash() + `.css">`), template.HTML("")
@@ -219,7 +219,7 @@ if ('serviceWorker' in navigator) {
 	script := buffer.Bytes()
 	if script != nil {
 		d.Logf("Injecting route and HTML for script")
-		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "")
+		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "", 60*60*8) // Cache for 8 hours
 		app.Handle("/script-"+ch.Hash()+".js", ch)
 		return template.HTML(""), template.HTML(`
     <script src="/script-` + ch.Hash() + `.js"></script>`)
@@ -368,7 +368,7 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
 		panic("Could not generate JSON for the manifest. Perhaps a problem with the config?")
 	}
 	d.Logf("Adding route for manifest")
-	ch := NewContentHandler(d.Logger, manifest, "application/json", "")
+	ch := NewContentHandler(d.Logger, manifest, "application/json", "", 60*60*8) // Cache for 8 hours
 	app.Handle("/manifest-"+ch.Hash()+".json", ch)
 	return template.HTML(`
     <link rel="manifest" href="/manifest-` + ch.Hash() + `.json">`), template.HTML("")
