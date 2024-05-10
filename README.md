@@ -158,6 +158,9 @@ Icon should be loaded from a specific embedded file system for just that icon an
 
 The injectors themselves use `template.HTML` from `html/template` and combine it with code from `html.go`.
 
+If you use the Manifest injector it will create a manifest that will load from the URL path `/start` so make sure you implement that route in your app.
+
+
 ## GenerateGz
 
 There is a [`generategz`](cmd/generategz/main.go) tool that will scan a directly and pre-compress files to .gz adding a `.gz` extension. If the compressed file is actually bigger it is deleted.

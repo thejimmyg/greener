@@ -101,6 +101,10 @@ func main() {
 			s.WritePage("Hello", greener.Text("Hello <>!"))
 		}
 	})
+	// This is loaded based on the injected manifest.json when the user opens your app in PWA mode
+	app.HandleWithSimpleServices("/start", func(s *SimpleServices) {
+		s.WritePage("Start", greener.Text("This is your app's start page."))
+	})
 
 	// Serve
 	app.Serve(context.Background())
