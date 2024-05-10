@@ -83,6 +83,7 @@ func main() {
 		greener.NewDefaultServiceWorkerInjector(logger, uiSupport),
 		greener.NewDefaultThemeColorInjector(logger, themeColor),
 		greener.NewDefaultIconsInjector(logger, wwwFS, "icons/favicon-512x512.png"),
+		greener.NewDefaultLegacyFaviconInjector(logger, wwwFS, "icons/favicon-512x512.png"),
 		greener.NewDefaultManifestInjector(logger, appShortName),
 	}
 	emptyPageProvider := greener.NewDefaultEmptyPageProvider(injectors)

@@ -282,13 +282,38 @@ func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
 		d.Logf("Failed to decode source image for favicon: %v", err)
 		return template.HTML(""), template.HTML("")
 	}
-	app.HandleFunc("/favicon.ico", StaticFaviconHandler(d.Logger, &icon512))
 	app.HandleFunc("/icons/", StaticIconHandler(d.Logger, &icon512, icon512Etag, []int{16, 32, 144, 180, 192}))
 	return template.HTML(`
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/favicon-180x180.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">`), template.HTML("")
+}
+
+type DefaultLegacyFaviconInjector struct {
+	Logger
+	iconFS      fs.FS
+	icon512Path string
+}
+
+func (d *DefaultLegacyFaviconInjector) Inject(app App) (template.HTML, template.HTML) {
+	d.Logf("Adding legacy favicon to HTML")
+	fileIcon512, err := fs.ReadFile(d.iconFS, d.icon512Path)
+	if err != nil {
+		d.Logf("Failed to open source image for favicon: %v", err)
+		return template.HTML(""), template.HTML("")
+	}
+	icon512, _, err := image.Decode(bytes.NewReader(fileIcon512))
+	if err != nil {
+		d.Logf("Failed to decode source image for favicon: %v", err)
+		return template.HTML(""), template.HTML("")
+	}
+	app.HandleFunc("/favicon.ico", StaticFaviconHandler(d.Logger, &icon512))
+	return template.HTML(`
     <link rel="shortcut icon" href="/favicon.ico">`), template.HTML("")
+}
+
+func NewDefaultLegacyFaviconInjector(logger Logger, iconFS fs.FS, icon512Path string) *DefaultLegacyFaviconInjector {
+	return &DefaultLegacyFaviconInjector{Logger: logger, iconFS: iconFS, icon512Path: icon512Path}
 }
 
 func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string) *DefaultIconsInjector {
