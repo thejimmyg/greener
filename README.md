@@ -133,7 +133,7 @@ The best way to be efficient on the web is to make sure your app doesn't make re
 
 Greener can help with each of these steps.
 
-* The `UISupport` interface embeds `StyleProvider`, `ScriptProvider` and `ServiceWorkerProvider`. The `NewDefaultUISupport()` method allows you to specify `style`, `script` and `serviceWorker` content. Then `DefaultStyleInjector`, `DefaultScriptInjector` and `DefaultServiceWorkerInjector` can be passed all the `UISupport`s in order to assemble a single `style.css`, `script.js` and `service-worker.js` and then to serve them either at a fixed location with etag caching and content compression (`StaticContentHandler`) or to serve them at a path based on their hash with a 1 year fixed cache and content compression (`NewContentHandler`).
+* The `UISupport` interface embeds `StyleProvider`, `ScriptProvider` and `ServiceWorkerProvider`. The `NewDefaultUISupport()` method allows you to specify `style`, `script` and `serviceWorker` content. Then `DefaultStyleInjector` and `DefaultScriptInjector` can be passed all the `UISupport`s in order to assemble a single `style.css`, `script.js` and `service-worker.js` and then to serve them either at a fixed location with etag caching and content compression (`StaticContentHandler`) or to serve them at a path based on their hash with a 1 year fixed cache and content compression (`NewContentHandler`).
 
 NOTE: Only the manifest.json, style.css and script.js are served with a `NewContentHandler` at the moment. The others are served with e-tag caching using `StaticContentHandler` but this should be changed since icons don't to be at a fixed path. It is best to keep `service-worker.js` directly from `/` and at a fixed path in case the browser makes a request to it to see if the service worker has changed. We use etag caching in this case.
 
@@ -145,11 +145,12 @@ QUESTION: Should `NewContentHandler` support etag caching too just in case the b
 
 Injectors:
 
-* Script (if service worker)
+* Script (and service worker)
 * Style (legacy and modern)
 * Manifest
-* Service worker (if manifest)
+* SEO
 * Icon
+* Legacy favicon
 
 The top ones should all generate brotli, gzip and original and set a forever cache returning the base64 sha512 sum of the contents, perhaps salted with a particular string.
 

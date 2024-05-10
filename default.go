@@ -3,6 +3,7 @@ package greener
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"image"
@@ -183,15 +184,24 @@ type DefaultScriptInjector struct {
 }
 
 func (d *DefaultScriptInjector) Inject(app App) (template.HTML, template.HTML) {
+	// Handle service worker first
+	var swBuffer bytes.Buffer
+	for _, sp := range d.uiSupports {
+		swBuffer.WriteString(sp.ServiceWorker())
+	}
+	serviceWorker := swBuffer.Bytes()
+	if serviceWorker != nil {
+		d.Logf("Injecting route for /service-worker.js")
+		app.HandleFunc("/service-worker.js", StaticContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8"))
+	} else {
+		d.Logf("No service workers specified")
+	}
+
 	var buffer bytes.Buffer
-	includeServiceWorker := false
 	for _, uis := range d.uiSupports {
-		if !includeServiceWorker && uis.ServiceWorker() != "" {
-			includeServiceWorker = true
-		}
 		buffer.WriteString(uis.Script())
 	}
-	if includeServiceWorker {
+	if serviceWorker != nil {
 		buffer.WriteString(`
 /* Service Worker */
 
@@ -218,33 +228,9 @@ if ('serviceWorker' in navigator) {
 		return template.HTML(""), template.HTML("")
 	}
 }
+
 func NewDefaultScriptInjector(logger Logger, uiSupports []UISupport) *DefaultScriptInjector {
 	return &DefaultScriptInjector{Logger: logger, uiSupports: uiSupports}
-}
-
-type DefaultServiceWorkerInjector struct {
-	Logger
-	uiSupports []UISupport
-}
-
-func (d *DefaultServiceWorkerInjector) Inject(app App) (template.HTML, template.HTML) {
-	var buffer bytes.Buffer
-	for _, sp := range d.uiSupports {
-		buffer.WriteString(sp.ServiceWorker())
-	}
-	serviceWorker := buffer.Bytes()
-	if serviceWorker != nil {
-		d.Logf("Injecting route for /service-worker.js")
-		app.HandleFunc("/service-worker.js", StaticContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8"))
-		return template.HTML(""), template.HTML("")
-	} else {
-		d.Logf("No serviceWorkers specified")
-		return template.HTML(""), template.HTML("")
-	}
-}
-
-func NewDefaultServiceWorkerInjector(logger Logger, uiSupports []UISupport) *DefaultServiceWorkerInjector {
-	return &DefaultServiceWorkerInjector{Logger: logger, uiSupports: uiSupports}
 }
 
 type DefaultThemeColorInjector struct {
@@ -289,6 +275,10 @@ func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">`), template.HTML("")
 }
 
+func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string) *DefaultIconsInjector {
+	return &DefaultIconsInjector{Logger: logger, iconFS: iconFS, icon512Path: icon512Path}
+}
+
 type DefaultLegacyFaviconInjector struct {
 	Logger
 	iconFS      fs.FS
@@ -316,35 +306,67 @@ func NewDefaultLegacyFaviconInjector(logger Logger, iconFS fs.FS, icon512Path st
 	return &DefaultLegacyFaviconInjector{Logger: logger, iconFS: iconFS, icon512Path: icon512Path}
 }
 
-func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string) *DefaultIconsInjector {
-	return &DefaultIconsInjector{Logger: logger, iconFS: iconFS, icon512Path: icon512Path}
+type DefaultSEOInjector struct {
+	Logger
+	description string
+}
+
+func (d *DefaultSEOInjector) Inject(app App) (template.HTML, template.HTML) {
+	d.Logf("Adding HTML for SEO meta description")
+	return HTMLPrintf(`
+    <meta name="description" content="%s">`, Text(d.description)), template.HTML("")
+}
+
+func NewDefaultSEOInjector(logger Logger, description string) *DefaultSEOInjector {
+	return &DefaultSEOInjector{Logger: logger, description: description}
 }
 
 type DefaultManifestInjector struct {
 	Logger
 	appShortName string
+	themeColor   string
 }
 
 func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML) {
-	manifest := []byte(fmt.Sprintf(`{
-  "name": "%s",
-  "short_name": "%s",
-  "start_url": "/start",
-  "display": "standalone",
-  "icons": [
-    {
-      "src": "/icons/favicon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/favicon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
-}`, d.appShortName, d.appShortName))
-
+	manifestData := struct {
+		Name       string `json:"name"`
+		ShortName  string `json:"short_name"`
+		StartURL   string `json:"start_url"`
+		Display    string `json:"display"`
+		ThemeColor string `json:"theme_color"`
+		Icons      []struct {
+			Src   string `json:"src"`
+			Sizes string `json:"sizes"`
+			Type  string `json:"type"`
+		} `json:"icons"`
+	}{
+		Name:       d.appShortName,
+		ShortName:  d.appShortName,
+		StartURL:   "/start",
+		Display:    "standalone",
+		ThemeColor: d.themeColor,
+		Icons: []struct {
+			Src   string `json:"src"`
+			Sizes string `json:"sizes"`
+			Type  string `json:"type"`
+		}{
+			{
+				Src:   "/icons/favicon-192x192.png",
+				Sizes: "192x192",
+				Type:  "image/png",
+			},
+			{
+				Src:   "/icons/favicon-512x512.png",
+				Sizes: "512x512",
+				Type:  "image/png",
+			},
+		},
+	}
+	manifest, err := json.MarshalIndent(manifestData, "", "  ")
+	if err != nil {
+		d.Logf("JSON marshalling failed: %s", err)
+		panic("Could not generate JSON for the manifest. Perhaps a problem with the config?")
+	}
 	d.Logf("Adding route for manifest")
 	ch := NewContentHandler(d.Logger, manifest, "application/json", "")
 	app.Handle("/manifest-"+ch.Hash()+".json", ch)
@@ -352,8 +374,8 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
     <link rel="manifest" href="/manifest-` + ch.Hash() + `.json">`), template.HTML("")
 }
 
-func NewDefaultManifestInjector(logger Logger, appShortName string) *DefaultManifestInjector {
-	return &DefaultManifestInjector{Logger: logger, appShortName: appShortName}
+func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string) *DefaultManifestInjector {
+	return &DefaultManifestInjector{Logger: logger, appShortName: appShortName, themeColor: themeColor}
 }
 
 // Injectors prepares an HTML page string (to be used with HTMLPrintf) from a slice of Injector.

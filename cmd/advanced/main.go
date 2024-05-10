@@ -80,11 +80,11 @@ func main() {
 	injectors := []greener.Injector{
 		greener.NewDefaultStyleInjector(logger, uiSupport),
 		greener.NewDefaultScriptInjector(logger, uiSupport),
-		greener.NewDefaultServiceWorkerInjector(logger, uiSupport),
 		greener.NewDefaultThemeColorInjector(logger, themeColor),
+		greener.NewDefaultSEOInjector(logger, "A web app"),
 		greener.NewDefaultIconsInjector(logger, wwwFS, "icons/favicon-512x512.png"),
 		greener.NewDefaultLegacyFaviconInjector(logger, wwwFS, "icons/favicon-512x512.png"),
-		greener.NewDefaultManifestInjector(logger, appShortName),
+		greener.NewDefaultManifestInjector(logger, appShortName, themeColor),
 	}
 	emptyPageProvider := greener.NewDefaultEmptyPageProvider(injectors)
 	static := greener.NewCompressedFileHandler(http.FS(wwwFS))
