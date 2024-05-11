@@ -86,18 +86,20 @@ func main() {
 	appShortName := "Simple"
 	config := greener.NewDefaultServeConfigProviderFromEnvironment()
 	logger := greener.NewDefaultLogger(log.Printf)
-	cacheSeconds := 5 // In real life you might set this to a day, a month or a year perhaps
-	iconInjector, err := greener.NewDefaultIconsInjector(logger, iconFileFS, "icon-512x512.png", []int{16, 32, 144, 180, 192, 512}, cacheSeconds)
+	// Both these would be longer for production though
+	longCacheSeconds := 60 // In real life you might set this to a day, a month or a year perhaps
+	shortCacheSeconds := 5 // Keep this fairly short because you want changes to propgagte quickly
+	iconInjector, err := greener.NewDefaultIconsInjector(logger, iconFileFS, "icon-512x512.png", []int{16, 32, 144, 180, 192, 512}, longCacheSeconds)
 	if err != nil {
 		panic(err)
 	}
-	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "/start", cacheSeconds, iconInjector.IconPaths(), []int{192, 512})
+	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "/start", shortCacheSeconds, iconInjector.IconPaths(), []int{192, 512})
 	if err != nil {
 		panic(err)
 	}
 	injectors := []greener.Injector{
-		greener.NewDefaultStyleInjector(logger, uiSupport, cacheSeconds),
-		greener.NewDefaultScriptInjector(logger, uiSupport, cacheSeconds),
+		greener.NewDefaultStyleInjector(logger, uiSupport, longCacheSeconds),
+		greener.NewDefaultScriptInjector(logger, uiSupport, longCacheSeconds),
 		greener.NewDefaultThemeColorInjector(logger, themeColor),
 		greener.NewDefaultSEOInjector(logger, "A web app"),
 		iconInjector,

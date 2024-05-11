@@ -138,7 +138,7 @@ Greener can help with each of these steps.
 
 Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injectors that use `NewContentHandler` and `StaticContentHandler` in action.
 
-In NewContentHandler, when serving with a cache time, etags are still supported so that if the cache has expired and the content hasn't changed the server doesn't need to send it again. The `/service-worker.js` path is not served with a hash in its path because browsers might re-visit the URL occasionally and won't expect it to be missing. The manifest.json does change path though, and I haven't tested the implications of that.
+In NewContentHandler, when serving with a cache time, etags are still supported so that if the cache has expired and the content hasn't changed the server doesn't need to send it again. The `/service-worker.js` and `/manifest.json` paths are not served with a hash in their paths because browsers might re-visit the URL occasionally and won't expect it to be missing.
 
 Injectors:
 

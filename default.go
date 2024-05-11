@@ -334,9 +334,9 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
 	}
 	d.Logf("Adding route for manifest")
 	ch := NewContentHandler(d.Logger, manifest, "application/json", "", d.cacheSeconds)
-	app.Handle("/manifest-"+ch.Hash()+".json", ch)
-	return HTMLPrintf(`
-    <link rel="manifest" href="/manifest-%s.json">`, Text(url.PathEscape(ch.Hash()))), template.HTML("")
+	app.Handle("/manifest.json", ch)
+	return template.HTML(`
+    <link rel="manifest" href="/manifest.json">`), template.HTML("")
 }
 
 func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string, startURL string, cacheSeconds int, iconPaths map[int]string, sizes []int) (*DefaultManifestInjector, error) {
