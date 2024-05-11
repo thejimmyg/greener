@@ -133,14 +133,12 @@ The best way to be efficient on the web is to make sure your app doesn't make re
 
 Greener can help with each of these steps.
 
-* The `UISupport` interface embeds `StyleProvider`, `ScriptProvider` and `ServiceWorkerProvider`. The `NewDefaultUISupport()` method allows you to specify `style`, `script` and `serviceWorker` content. Then `DefaultStyleInjector` and `DefaultScriptInjector` can be passed all the `UISupport`s in order to assemble a single `style.css`, `script.js` and `service-worker.js` and then to serve them either at a fixed location with etag caching and content compression (`StaticContentHandler`) or to serve them at a path based on their hash with a 1 year fixed cache and content compression (`NewContentHandler`).
-
-NOTE: Only the manifest.json, style.css and script.js are served with a `NewContentHandler` at the moment. The others are served with e-tag caching using `StaticContentHandler` but this should be changed since icons don't to be at a fixed path. It is best to keep `service-worker.js` directly from `/` and at a fixed path in case the browser makes a request to it to see if the service worker has changed. We use etag caching in this case.
+* The `UISupport` interface embeds `StyleProvider`, `ScriptProvider` and `ServiceWorkerProvider`. The `NewDefaultUISupport()` method allows you to specify `style`, `script` and `serviceWorker` content. Then `DefaultStyleInjector` and `DefaultScriptInjector` can be passed all the `UISupport`s in order to assemble a single `style.css`, `script.js` and `service-worker.js` and then to serve them either at a fixed location with etag caching and content compression (`NewContentHandler`).
 
 
 Take a look at [`./cmd/advanced/main.go`](cmd/advanced/main.go) to see the injectors that use `NewContentHandler` and `StaticContentHandler` in action.
 
-In NewContentHandler, when serving with a cache time, etags are still supported so that if the cache has expired and the content hasn't changed the server doesn't need to send it again.
+In NewContentHandler, when serving with a cache time, etags are still supported so that if the cache has expired and the content hasn't changed the server doesn't need to send it again. The `/service-worker.js` path is not served with a hash in its path because browsers might re-visit the URL occasionally and won't expect it to be missing. The manifest.json does change path though, and I haven't tested the implications of that.
 
 Injectors:
 

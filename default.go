@@ -195,7 +195,9 @@ func (d *DefaultScriptInjector) Inject(app App) (template.HTML, template.HTML) {
 	serviceWorker := swBuffer.Bytes()
 	if serviceWorker != nil {
 		d.Logf("Injecting route for /service-worker.js")
-		app.HandleFunc("/service-worker.js", StaticContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8"))
+		// No cache for this one
+		ch := NewContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8", "", 0)
+		app.Handle("/service-worker.js", ch)
 	} else {
 		d.Logf("No service workers specified")
 	}
@@ -252,36 +254,6 @@ func NewDefaultThemeColorInjector(logger Logger, themeColor string) *DefaultThem
 	return &DefaultThemeColorInjector{Logger: logger, themeColor: themeColor}
 }
 
-type DefaultIconsInjector struct {
-	Logger
-	iconFS      fs.FS
-	icon512Path string
-}
-
-func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
-	d.Logf("Injecting route and HTML for png icons")
-	fileIcon512, err := fs.ReadFile(d.iconFS, d.icon512Path)
-	if err != nil {
-		d.Logf("Failed to open source image for favicon: %v", err)
-		return template.HTML(""), template.HTML("")
-	}
-	icon512Etag := GenerateETag(fileIcon512)
-	icon512, _, err := image.Decode(bytes.NewReader(fileIcon512))
-	if err != nil {
-		d.Logf("Failed to decode source image for favicon: %v", err)
-		return template.HTML(""), template.HTML("")
-	}
-	app.HandleFunc("/icons/", StaticIconHandler(d.Logger, &icon512, icon512Etag, []int{16, 32, 144, 180, 192}))
-	return template.HTML(`
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/favicon-180x180.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">`), template.HTML("")
-}
-
-func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string) *DefaultIconsInjector {
-	return &DefaultIconsInjector{Logger: logger, iconFS: iconFS, icon512Path: icon512Path}
-}
-
 type DefaultLegacyFaviconInjector struct {
 	Logger
 	iconFS      fs.FS
@@ -300,7 +272,7 @@ func (d *DefaultLegacyFaviconInjector) Inject(app App) (template.HTML, template.
 		d.Logf("Failed to decode source image for favicon: %v", err)
 		return template.HTML(""), template.HTML("")
 	}
-	app.HandleFunc("/favicon.ico", StaticFaviconHandler(d.Logger, &icon512))
+	app.HandleFunc("/favicon.ico", StaticFaviconHandler(d.Logger, icon512))
 	return template.HTML(`
     <link rel="shortcut icon" href="/favicon.ico">`), template.HTML("")
 }
@@ -329,6 +301,14 @@ type DefaultManifestInjector struct {
 	appShortName string
 	themeColor   string
 	cacheSeconds int
+	startURL     string
+	icons        []icon
+}
+
+type icon struct {
+	Src   string `json:"src"`
+	Sizes string `json:"sizes"`
+	Type  string `json:"type"`
 }
 
 func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML) {
@@ -338,33 +318,14 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
 		StartURL   string `json:"start_url"`
 		Display    string `json:"display"`
 		ThemeColor string `json:"theme_color"`
-		Icons      []struct {
-			Src   string `json:"src"`
-			Sizes string `json:"sizes"`
-			Type  string `json:"type"`
-		} `json:"icons"`
+		Icons      []icon `json:"icons"`
 	}{
 		Name:       d.appShortName,
 		ShortName:  d.appShortName,
-		StartURL:   "/start",
+		StartURL:   d.startURL,
 		Display:    "standalone",
 		ThemeColor: d.themeColor,
-		Icons: []struct {
-			Src   string `json:"src"`
-			Sizes string `json:"sizes"`
-			Type  string `json:"type"`
-		}{
-			{
-				Src:   "/icons/favicon-192x192.png",
-				Sizes: "192x192",
-				Type:  "image/png",
-			},
-			{
-				Src:   "/icons/favicon-512x512.png",
-				Sizes: "512x512",
-				Type:  "image/png",
-			},
-		},
+		Icons:      d.icons,
 	}
 	manifest, err := json.MarshalIndent(manifestData, "", "  ")
 	if err != nil {
@@ -378,8 +339,25 @@ func (d *DefaultManifestInjector) Inject(app App) (template.HTML, template.HTML)
     <link rel="manifest" href="/manifest-%s.json">`, Text(url.PathEscape(ch.Hash()))), template.HTML("")
 }
 
-func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string, cacheSeconds int) *DefaultManifestInjector {
-	return &DefaultManifestInjector{Logger: logger, appShortName: appShortName, themeColor: themeColor, cacheSeconds: cacheSeconds}
+func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string, startURL string, cacheSeconds int, iconPaths map[int]string, sizes []int) (*DefaultManifestInjector, error) {
+	var icons []icon
+
+	for _, size := range sizes {
+		path, exists := iconPaths[size]
+		if !exists {
+			// Handle the case where no path is found for a given size
+			return nil, fmt.Errorf("no path found for size: %d", size)
+		}
+
+		icons = append(icons, icon{
+			Src:   "/" + path,
+			Sizes: fmt.Sprintf("%dx%d", size, size),
+			Type:  "image/png",
+		})
+	}
+
+	return &DefaultManifestInjector{Logger: logger, appShortName: appShortName, themeColor: themeColor, cacheSeconds: cacheSeconds, icons: icons, startURL: startURL}, nil
+
 }
 
 // Injectors prepares an HTML page string (to be used with HTMLPrintf) from a slice of Injector.
