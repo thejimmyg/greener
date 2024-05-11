@@ -11,8 +11,17 @@ import (
 	"github.com/thejimmyg/greener"
 )
 
+// The go:embed syntax below is a special format that tells Go to copy all the
+// matched files into the binary itself so that they can be accessed without
+// needing the originals any more.
+
+// We are going to set up one embedded filesystem for the www public files, and one for the icon.
+
 //go:embed www/*
-var wwwFiles embed.FS
+var wwwFS embed.FS
+
+//go:embed icon-512x512.png
+var iconFileFS embed.FS
 
 type SimpleConfig struct{}
 
@@ -67,7 +76,7 @@ func (app *SimpleApp) HandleWithSimpleServices(path string, handler func(*Simple
 
 func main() {
 	// Setup
-	wwwFS, _ := fs.Sub(wwwFiles, "www") // Used for the icon and the static file serving
+	wwwFSRoot, _ := fs.Sub(wwwFS, "www") // Used for the icon and the static file serving
 	uiSupport := []greener.UISupport{greener.NewDefaultUISupport(
 		"body {background: #ffc;}",
 		`console.log("Hello from script");`,
@@ -78,7 +87,7 @@ func main() {
 	config := greener.NewDefaultServeConfigProviderFromEnvironment()
 	logger := greener.NewDefaultLogger(log.Printf)
 	cacheSeconds := 5 // In real life you might set this to a day, a month or a year perhaps
-	iconInjector, err := greener.NewDefaultIconsInjector(logger, wwwFS, "icons/favicon-512x512.png", []int{16, 32, 144, 180, 192, 512}, cacheSeconds)
+	iconInjector, err := greener.NewDefaultIconsInjector(logger, iconFileFS, "icon-512x512.png", []int{16, 32, 144, 180, 192, 512}, cacheSeconds)
 	if err != nil {
 		panic(err)
 	}
@@ -93,10 +102,10 @@ func main() {
 		greener.NewDefaultSEOInjector(logger, "A web app"),
 		iconInjector,
 		manifestInjector,
-		// greener.NewDefaultLegacyFaviconInjector(logger, wwwFS, "icons/favicon-512x512.png"),
+		// greener.NewDefaultLegacyFaviconInjector(logger, wwwFSRoot, "icons/favicon-512x512.png"),
 	}
 	emptyPageProvider := greener.NewDefaultEmptyPageProvider(injectors)
-	static := greener.NewCompressedFileHandler(http.FS(wwwFS))
+	static := greener.NewCompressedFileHandler(http.FS(wwwFSRoot))
 
 	// Routes
 	app := NewSimpleApp(greener.NewDefaultApp(config, logger, emptyPageProvider), NewSimpleConfig())
