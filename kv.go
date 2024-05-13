@@ -77,7 +77,7 @@ func NewKV(ctx context.Context, db DB) (*KV, error) {
 		db: db,
 	}
 
-	err := tm.db.Write(func(writeDB DBHandler) error {
+	err := tm.db.Write(func(writeDB WriteDBHandler) error {
 		if err := tm.ensureTableExists(ctx, "kv", writeDB); err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ func NewKV(ctx context.Context, db DB) (*KV, error) {
 }
 
 // There would be a race condition here, but since Put/Create/Delete all obtain an exclusive mutex, and since they are the only functions that call it, we're OK.
-func (tm *KV) ensureTableExists(ctx context.Context, tableName string, writeDB DBHandler) error {
+func (tm *KV) ensureTableExists(ctx context.Context, tableName string, writeDB WriteDBHandler) error {
 	createTableSQL := fmt.Sprintf(`
         CREATE TABLE IF NOT EXISTS %s (
             pk TEXT NOT NULL,
@@ -117,7 +117,7 @@ func (tm *KV) StartCleanupRoutine(ctx context.Context) {
 			case <-ticker.C:
 				now := time.Now().Unix()
 				tableName := "kv"
-				err := tm.db.Write(func(writeDB DBHandler) error {
+				err := tm.db.Write(func(writeDB WriteDBHandler) error {
 
 					_, err := writeDB.ExecContext(ctx, "DELETE FROM "+tableName+" WHERE expires IS NOT NULL AND expires < ?", now)
 					if err != nil {
@@ -137,7 +137,7 @@ func (tm *KV) putOrCreate(ctx context.Context, pk string, sk string, data JSONVa
 
 	tableName := "kv"
 	changed := true
-	err := tm.db.Write(func(writeDB DBHandler) error {
+	err := tm.db.Write(func(writeDB WriteDBHandler) error {
 
 		jsonData, err := json.Marshal(data)
 		if err != nil {
@@ -242,7 +242,7 @@ func (tm *KV) Delete(ctx context.Context, pk string, sk string) error {
 	// Prepare the DELETE statement
 	deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE pk = ? AND sk = ?", tableName)
 
-	err := tm.db.Write(func(writeDB DBHandler) error {
+	err := tm.db.Write(func(writeDB WriteDBHandler) error {
 		_, err := writeDB.ExecContext(ctx, deleteSQL, pk, sk)
 		if err != nil {
 			return fmt.Errorf("failed to delete row from table %s with pk %s and sk %s: %w", tableName, pk, sk, err)

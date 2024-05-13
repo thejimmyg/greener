@@ -36,26 +36,32 @@ func newSQLiteConnectionURL(path string) string {
 
 type writeRequest struct {
 	resp chan error
-	fn   func(DBHandler) error
+	fn   func(WriteDBHandler) error
 }
 
-type DBHandler interface {
+type ReadDBHandler interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
+type WriteDBHandler interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*rowsWrapper, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *rowWrapper
+}
+
 type DBModifier interface {
-	Write(func(DBHandler) error) error
+	Write(func(WriteDBHandler) error) error
 }
 
 type DB interface {
-	DBHandler
+	ReadDBHandler
 	DBModifier
 }
 
 type BatchDB struct {
-	DBHandler
+	ReadDBHandler
 	readDB        *sql.DB
 	writeDB       *sql.DB
 	writeDBLock   sync.Mutex
@@ -92,7 +98,7 @@ func NewBatchDB(path string, flushTimeout time.Duration) (*BatchDB, error) {
 	}
 
 	db := &BatchDB{
-		DBHandler:     ReadDB,
+		ReadDBHandler: ReadDB,
 		readDB:        ReadDB,
 		writeDB:       writeDB,
 		writeRequests: make(chan writeRequest),
@@ -119,15 +125,19 @@ func (db *BatchDB) batchProcessor() {
 					continue
 				}
 			}
-			err := req.fn(currentTx)
+			txWrapper := &txWrapper{tx: currentTx}
+			err := req.fn(txWrapper)
 			if err != nil {
 				// fmt.Printf("Rolling back: %v\n", err)
-				rollbackErr := currentTx.Rollback()
-				if rollbackErr != nil {
-					fmt.Printf("Error rolling back: %v. Original error: %v\n", rollbackErr, err)
+				if txWrapper.err == nil {
+					txWrapper.Abort(err)
 				}
+				// The original error is returned to the caller
 				req.resp <- err
+			}
+			if txWrapper.err != nil {
 				for _, r := range requests {
+					// All the earlier goroutines get a standard message
 					r.resp <- fmt.Errorf("Transaction aborted")
 				}
 				requests = requests[:0]
@@ -148,7 +158,7 @@ func (db *BatchDB) batchProcessor() {
 	}
 }
 
-func (db *BatchDB) Write(fn func(DBHandler) error) error {
+func (db *BatchDB) Write(fn func(WriteDBHandler) error) error {
 	respChan := make(chan error)
 	req := writeRequest{
 		fn:   fn,

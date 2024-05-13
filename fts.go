@@ -44,7 +44,7 @@ func NewFTS(ctx context.Context, db DB) (*FTS, error) {
 		`CREATE TABLE IF NOT EXISTS document_facets (document_id TEXT, facet_id INTEGER, FOREIGN KEY(facet_id) REFERENCES facets(id));`,
 	}
 	for _, query := range queries {
-		err := db.Write(func(d DBHandler) error {
+		err := db.Write(func(d WriteDBHandler) error {
 			if _, err := d.ExecContext(ctx, query); err != nil {
 				return err
 			}
@@ -63,7 +63,7 @@ func (se *FTS) Put(ctx context.Context, docid string, reader io.Reader) error {
 		return err
 	}
 
-	err = se.db.Write(func(d DBHandler) error {
+	err = se.db.Write(func(d WriteDBHandler) error {
 		// I think we need to do the two operations separately because of a limitation in FT5 virtual tables, but should check this again.
 
 		// Attempt to update the document first.
@@ -93,7 +93,7 @@ func (se *FTS) Put(ctx context.Context, docid string, reader io.Reader) error {
 }
 
 func (se *FTS) Delete(ctx context.Context, docid string) error {
-	err := se.db.Write(func(d DBHandler) error {
+	err := se.db.Write(func(d WriteDBHandler) error {
 		_, err := d.ExecContext(ctx, "DELETE FROM documents WHERE docid = ?", docid)
 		return err
 	})
@@ -140,7 +140,7 @@ func (se *FTS) Search(ctx context.Context, query string) ([]map[string]string, e
 
 func (se *FTS) AddFacets(ctx context.Context, docid string, facets []Facet) error {
 	for _, facet := range facets {
-		err := se.db.Write(func(d DBHandler) error {
+		err := se.db.Write(func(d WriteDBHandler) error {
 			result, err := d.ExecContext(ctx, "INSERT INTO facets (name, value) VALUES (?, ?) ON CONFLICT(name, value) DO NOTHING", facet.Name, facet.Value)
 			if err != nil {
 				return fmt.Errorf("Could not insert facet: %v\n", err)

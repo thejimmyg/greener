@@ -257,21 +257,19 @@ db.QueryContext(ctx)
 db.QueryRowContext(ctx)
 
 
-// Batch read/write queries guaranteed to all be in the same transaction
-var nonSQLErr error
-batchErr := db.Write(func (db DBHandler) error) {
+err := db.Write(func (db DBHandler) error) {
+	// Batch read/write queries guaranteed to all be in the same transaction
 	// The read/write db object here shadows the read-only outer db one, preventing access
 	if err := db.QueryRowContext(ctx); err != nil {
-		// Returning an error causes the transaction to abort and all other goroutines sharing the transaction to fail too, so you should only return errors from SQL
+		// Returning an error causes the transaction to abort and all other goroutines sharing the transaction to fail too, so you should only return errors if you want this and all other changes that might have been made by other goroutines to abort and be rolled back too
 		return err
 	}
-
-	nonSQLErr = fmt.Errorf("This is an application level error, not the result of SQL failing")
+	// Returning nil causes the changes to be scheduled for commit
+	return nil
 }
-if batchErr != nil {
+// This isn't guaranteed to be the exact error you returned in the function passed to `db.Write()`, it could be a transaction error triggered by a different goroutine that was sharing the transaction.
+if err != nil {
 	fmt.Printf("Batch failed to write. All goroutines that shared it are also aborted.\n")
-} else if nonSQLErr != nil {
-	fmt.Printf("This specific call to Write failed, but not because of an SQL error, so it did not result in the transaciton being aborted.\n")
 }
 ```
 
@@ -281,10 +279,12 @@ The default implementation uses the pure Go SQLite driver, but you can switch to
 go test -tags='sqlitec sqlite_fts5'
 ```
 
-If you want to see an indication of the throughput, run the tests with `go test -v` and look for these lines:
+If you want to see an indication of the throughput, run the tests with:
 
+```sh
+go test -v | grep 'Completed batch inserting'
 ```
-Starting batch inserting 10000 greetings.
+```
 Completed batch inserting 10000 greetings in 142.976767ms, 69941.433212 greetings per second
 ```
 

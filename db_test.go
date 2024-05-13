@@ -44,7 +44,7 @@ func TestBatchDB(t *testing.T) {
 		}
 	})
 
-	err = db.Write(func(writeDB greener.DBHandler) error {
+	err = db.Write(func(writeDB greener.WriteDBHandler) error {
 		createTableSQL := `CREATE TABLE IF NOT EXISTS greetings (id INTEGER PRIMARY KEY, greeting TEXT)`
 		if _, err := writeDB.ExecContext(ctx, createTableSQL); err != nil {
 			return err
@@ -111,7 +111,7 @@ func TestBatchDB(t *testing.T) {
 			defer wg.Done()
 			defer func() { <-semaphore }() // Release semaphore once done, allowing another goroutine to proceed
 
-			err := db.Write(func(writeDB greener.DBHandler) error {
+			err := db.Write(func(writeDB greener.WriteDBHandler) error {
 				greeting := fmt.Sprintf("Hello, World #%d!", i)
 				insertGreetingSQL := `INSERT INTO greetings (greeting) VALUES (?)`
 				_, err := writeDB.ExecContext(ctx, insertGreetingSQL, greeting)
@@ -132,7 +132,7 @@ func TestBatchDB(t *testing.T) {
 
 	greeting := fmt.Sprintf("Hello, World #err1!")
 	t.Logf("Trying out an error\n")
-	err = db.Write(func(writeDB greener.DBHandler) error {
+	err = db.Write(func(writeDB greener.WriteDBHandler) error {
 		insertGreetingSQL := `INSERT INTO not_a_real_greetings_table (greeting) VALUES (?)`
 		_, err := writeDB.ExecContext(ctx, insertGreetingSQL, greeting)
 		if err != nil {
@@ -145,7 +145,7 @@ func TestBatchDB(t *testing.T) {
 	}
 
 	t.Logf("Trying again\n")
-	err = db.Write(func(writeDB greener.DBHandler) error {
+	err = db.Write(func(writeDB greener.WriteDBHandler) error {
 		insertGreetingSQL := `INSERT INTO greetings (greeting) VALUES (?)`
 		_, err := writeDB.ExecContext(ctx, insertGreetingSQL, greeting)
 		if err != nil {
