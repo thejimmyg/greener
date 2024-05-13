@@ -111,44 +111,7 @@ func compressContent(content []byte) ([]byte, []byte, error) {
 	}
 }
 
-func (c *contentHandler) brotliBest(supportsBrotli, supportsGzip bool, acceptEncoding string) bool {
-	if supportsBrotli && c.brotliContent != nil && (c.gzipContent == nil || len(c.brotliContent) < len(c.gzipContent)) {
-		return true
-	}
-	return false
-}
-
 func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var contentBytes []byte
-	var contentEncoding string
-	var contentLength string
-
-	acceptEncoding := r.Header.Get("Accept-Encoding")
-	supportsBrotli := strings.Contains(acceptEncoding, "br")
-	supportsGzip := strings.Contains(acceptEncoding, "gzip")
-
-	if c.brotliBest(supportsBrotli, supportsGzip, acceptEncoding) {
-		contentBytes = c.brotliContent
-		contentEncoding = "br"
-		contentLength = strconv.Itoa(len(c.brotliContent))
-	} else if supportsGzip && c.gzipContent != nil {
-		contentBytes = c.gzipContent
-		contentEncoding = "gzip"
-		contentLength = strconv.Itoa(len(c.gzipContent))
-	} else {
-		contentBytes = c.content
-		contentLength = strconv.Itoa(len(c.content))
-	}
-
-	w.Header().Set("Content-Type", c.contentType)
-	w.Header().Set("Content-Length", contentLength)
-	if c.cacheSeconds > 0 {
-		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", c.cacheSeconds))
-	}
-	if contentEncoding != "" {
-		w.Header().Set("Content-Encoding", contentEncoding)
-	}
-
 	// Set ETag header
 	etag := "\"" + c.Hash() + "\"" // Adding quotes around the ETag as per the HTTP ETag format
 	w.Header().Set("ETag", etag)
@@ -160,8 +123,96 @@ func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Send the content as the ETag did not match or was not provided
-	w.Write(contentBytes)
+	// Otherwise choose based partly on Accept-Encoding
+	acceptEncoding := r.Header.Get("Accept-Encoding")
+
+	// Default to sending original content unless a smaller, acceptable version is available
+	bestEncoding := "identity"
+	bestContent := c.content
+	var bestContentSize int = len(c.content)
+
+	// Helper function to parse the Accept-Encoding header
+	parseEncodings := func(header string) map[string]float64 {
+		encodings := make(map[string]float64)
+		for _, part := range strings.Split(header, ",") {
+			pieces := strings.Split(strings.TrimSpace(part), ";")
+			encoding := strings.TrimSpace(pieces[0])
+			qValue := 1.0 // Default qValue for encodings not specifying q-value
+			// This doesn't track the highest q value, it just tracks the last one that isn't 0. In HTTP headers I understand the last valid occurrence of the item takes precedence.
+			if len(pieces) > 1 {
+				qPart := strings.TrimSpace(pieces[1])
+				if strings.HasPrefix(qPart, "q=") {
+					var parsedQ float64
+					if _, err := fmt.Sscanf(qPart[2:], "%f", &parsedQ); err == nil && parsedQ >= 0 && parsedQ <= 1 {
+						encodings[encoding] = parsedQ
+					}
+				}
+			} else {
+				encodings[encoding] = qValue
+			}
+		}
+		return encodings
+	}
+
+	encodings := parseEncodings(acceptEncoding)
+
+	// Determine if an encoding is acceptable based on q-values
+	isAcceptable := func(encoding string) bool {
+		q, exists := encodings[encoding]
+		return exists && q > 0
+	}
+
+	// Build a list of acceptable encodings with their corresponding content sizes
+	acceptableEncodings := []struct {
+		encodingName string
+		content      []byte
+	}{
+		{"identity", c.content},
+	}
+
+	if isAcceptable("gzip") && c.gzipContent != nil {
+		acceptableEncodings = append(acceptableEncodings, struct {
+			encodingName string
+			content      []byte
+		}{"gzip", c.gzipContent})
+	}
+
+	if isAcceptable("br") && c.brotliContent != nil {
+		acceptableEncodings = append(acceptableEncodings, struct {
+			encodingName string
+			content      []byte
+		}{"br", c.brotliContent})
+	}
+
+	// Select the smallest acceptable encoding
+	for _, encoding := range acceptableEncodings {
+		if len(encoding.content) < bestContentSize {
+			bestEncoding = encoding.encodingName
+			bestContent = encoding.content
+			bestContentSize = len(encoding.content)
+		}
+	}
+
+	// Apply wildcard logic if no other encoding than identity is chosen and a wildcard is present
+	wildcardQ, wildcardPresent := encodings["*"]
+	if bestEncoding == "identity" && wildcardPresent && wildcardQ > 0 && c.gzipContent != nil {
+		bestEncoding = "gzip"
+		bestContent = c.gzipContent
+	}
+
+	// Set Content-Encoding header if not using the identity encoding
+	if bestEncoding != "identity" {
+		w.Header().Set("Content-Encoding", bestEncoding)
+	}
+	w.Header().Set("Content-Type", c.contentType)
+	if c.cacheSeconds > 0 {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", c.cacheSeconds))
+	}
+
+	// Write the content
+	contentLength := strconv.Itoa(len(bestContent))
+	w.Header().Set("Content-Length", contentLength)
+	w.Write(bestContent)
 }
 
 func etagMatch(header, etag string) bool {
