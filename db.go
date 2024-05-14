@@ -46,7 +46,7 @@ type ReadDBHandler interface {
 }
 
 type WriteDBHandler interface {
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...interface{}) (*resultWrapper, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*rowsWrapper, error)
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *rowWrapper
 }

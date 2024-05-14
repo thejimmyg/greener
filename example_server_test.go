@@ -126,13 +126,11 @@ func Example_server() {
 
 	// Context
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	shutdown := make(chan error)
 	go func() {
 		<-ctx.Done() // This blocks until the context is cancelled by calling stop() or sending a signal
 		logger.Logf("Shutting down server...")
-		if err := srv.Shutdown(context.Background()); err != nil {
-			logger.Logf("Server shutdown failed: %s", err)
-			os.Exit(1)
-		}
+		shutdown <- srv.Shutdown(context.Background())
 	}()
 
 	// Serve
@@ -158,7 +156,10 @@ func Example_server() {
 
 	// Shutdown
 	stop()
-
+	err = <-shutdown
+	if err != nil {
+		logger.Logf("Error shutting down: %v", err)
+	}
 	// Output: example_server_test.go:25: Server listening on localhost:8080
 	// Hello, world!
 	// example_server_test.go:25: Shutting down server...

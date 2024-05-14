@@ -7,21 +7,6 @@ package greener
 // 1. Try to serve the smallest content that is explicitly listed and a q that isn’t 0 or invalid, not the clients preferred one.
 // 2. Otherwise if a wildcard is supported, serve gzip if present and identity otherwise
 // 3. If there is no Accept-Encoding header or if it is empty or if an error occurs then serve identity
-//
-// These tests will cover different combinations of Accept-Encoding headers and the presence/absence of the content types (identity, gzip, brotli).
-
-// Test Case Structure
-//
-// For each test, the setup should include:
-//
-// * A contentHandler instance with predefined content for identity, gzip, and brotli.
-// * A simulated HTTP request with a specific Accept-Encoding header.
-// * A response writer to capture output.
-//
-// The tests will check:
-//
-// * Correct Content-Encoding is set in the response headers.
-// * Correct content (byte slice) is written to the response.
 
 import (
 	"bytes"
@@ -31,6 +16,7 @@ import (
 )
 
 func TestAcceptEncodingHeader(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		acceptEncodingMissing bool
@@ -143,20 +129,8 @@ func TestAcceptEncodingHeader(t *testing.T) {
 	}
 }
 
-// Wildcard Tests
-//
-// Checking behavior when the wildcard is used in the Accept-Encoding header.
-//
-//     Wildcard allowed, gzip and brotli present:
-//         Accept-Encoding: "*"
-//         Expected encoding: gzip (choose gzip as default for wildcard)
-//
-//     Wildcard with q=0:
-//         Accept-Encoding: "*;q=0"
-//         Expected encoding: identity
-//
-
 func TestWildcard(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		acceptEncodingMissing bool
@@ -215,23 +189,8 @@ func TestWildcard(t *testing.T) {
 	}
 }
 
-// Header Absence or Errors
-//
-// Cases when the header is absent, empty, or an error occurs in parsing.
-//
-//     No Accept-Encoding header:
-//         No Accept-Encoding header
-//         Expected encoding: identity
-//
-//     Empty Accept-Encoding header:
-//         Accept-Encoding: ""
-//         Expected encoding: identity
-//
-//     Header parsing error (simulated):
-//         Corrupted Accept-Encoding header value
-//         Expected encoding: identity
-
 func TestErrorConditions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		acceptEncodingMissing bool

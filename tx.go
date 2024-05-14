@@ -22,16 +22,43 @@ func (t *txWrapper) Abort(err error) {
 	}
 }
 
-// XXX Do we need a wrapper around result because LastInsertId() (int64, error) and RowsAffected() (int64, error) can both return errors? Are these errors ever enough to rollback the transactions?
-func (t *txWrapper) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (t *txWrapper) ExecContext(ctx context.Context, query string, args ...interface{}) (*resultWrapper, error) {
 	if t.err != nil {
 		return nil, fmt.Errorf("this transaction is already aborted")
 	}
 	result, err := t.tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		t.Abort(err)
+		return nil, err
 	}
-	return result, err
+	return &resultWrapper{result: result, txWrapper: t}, nil
+}
+
+type resultWrapper struct {
+	result    sql.Result
+	txWrapper *txWrapper
+}
+
+func (rw *resultWrapper) LastInsertId() (int64, error) {
+	if rw.txWrapper.err != nil {
+		return 0, fmt.Errorf("this transaction is already aborted")
+	}
+	id, err := rw.result.LastInsertId()
+	if err != nil {
+		rw.txWrapper.Abort(err)
+	}
+	return id, err
+}
+
+func (rw *resultWrapper) RowsAffected() (int64, error) {
+	if rw.txWrapper.err != nil {
+		return 0, fmt.Errorf("this transaction is already aborted")
+	}
+	count, err := rw.result.RowsAffected()
+	if err != nil {
+		rw.txWrapper.Abort(err)
+	}
+	return count, err
 }
 
 func (t *txWrapper) QueryContext(ctx context.Context, query string, args ...interface{}) (*rowsWrapper, error) {

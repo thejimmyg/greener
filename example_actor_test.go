@@ -1,6 +1,7 @@
 package greener_test
 
 import (
+	"context"
 	"fmt"
 	"github.com/thejimmyg/greener"
 	"net/http"
@@ -33,7 +34,7 @@ type Answer struct {
 // LocalActor handles requests directly
 type LocalActor struct{}
 
-func (a *LocalActor) MarkQuiz(completedQuiz CompletedQuiz) (int, error) {
+func (a *LocalActor) MarkQuiz(ctx context.Context, credentials string, completedQuiz CompletedQuiz) (int, error) {
 	score := 0
 	for i, answer := range completedQuiz.TeamAnswers {
 		if completedQuiz.OfficialAnswers[i].Value == answer.Value {
@@ -43,7 +44,7 @@ func (a *LocalActor) MarkQuiz(completedQuiz CompletedQuiz) (int, error) {
 	return score, nil // Assuming no errors occur in this simple computation
 }
 
-func (a *LocalActor) TakeQuiz(quiz Quiz) ([]Answer, error) {
+func (a *LocalActor) TakeQuiz(ctx context.Context, credentials string, quiz Quiz) ([]Answer, error) {
 	var answers []Answer
 	for _, question := range quiz.Questions {
 		answers = append(answers, Answer{QuestionID: question.ID, Value: "4"})
@@ -58,12 +59,12 @@ type RemoteActor struct {
 }
 
 // Quiz methods that use RemoteCall
-func (a *RemoteActor) MarkQuiz(completedQuiz CompletedQuiz) (int, error) {
-	return greener.ActorRemoteCall[CompletedQuiz, int](a.Client, a.ServerURL, "mark-quiz", completedQuiz)
+func (a *RemoteActor) MarkQuiz(ctx context.Context, credentials string, completedQuiz CompletedQuiz) (int, error) {
+	return greener.ActorRemoteCall[CompletedQuiz, int](a.Client, a.ServerURL, "mark-quiz", ctx, credentials, completedQuiz)
 }
 
-func (a *RemoteActor) TakeQuiz(quiz Quiz) ([]Answer, error) {
-	return greener.ActorRemoteCall[Quiz, []Answer](a.Client, a.ServerURL, "take-quiz", quiz)
+func (a *RemoteActor) TakeQuiz(ctx context.Context, credentials string, quiz Quiz) ([]Answer, error) {
+	return greener.ActorRemoteCall[Quiz, []Answer](a.Client, a.ServerURL, "take-quiz", ctx, credentials, quiz)
 }
 
 // HTTPServer wraps the LocalActor and implements http.Handler
@@ -87,6 +88,9 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func Example_actor() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Second))
+	defer cancel()
+	credentials := ""
 	quiz := Quiz{
 		Title: "Pub Quiz",
 		Questions: []Question{
@@ -95,8 +99,7 @@ func Example_actor() {
 	}
 
 	localActor := &LocalActor{}
-
-	answers, err := localActor.TakeQuiz(quiz)
+	answers, err := localActor.TakeQuiz(ctx, credentials, quiz)
 	if err != nil {
 		fmt.Println("Error taking quiz locally:", err)
 	} else {
@@ -111,7 +114,7 @@ func Example_actor() {
 		},
 	}
 
-	score, err := localActor.MarkQuiz(completedQuiz)
+	score, err := localActor.MarkQuiz(ctx, credentials, completedQuiz)
 	if err != nil {
 		fmt.Println("Error marking quiz locally:", err)
 	} else {
@@ -142,14 +145,14 @@ func Example_actor() {
 		Client:    httpClient,
 	}
 
-	answers, err = remoteActor.TakeQuiz(quiz)
+	answers, err = remoteActor.TakeQuiz(ctx, credentials, quiz)
 	if err != nil {
 		fmt.Println("Error taking quiz remotely:", err)
 	} else {
 		fmt.Println("Remote Answers:", answers)
 	}
 
-	score, err = remoteActor.MarkQuiz(completedQuiz)
+	score, err = remoteActor.MarkQuiz(ctx, credentials, completedQuiz)
 	if err != nil {
 		fmt.Println("Error marking quiz remotely:", err)
 	} else {
