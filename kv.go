@@ -76,10 +76,19 @@ func NewKV(ctx context.Context, db DB) (*KV, error) {
 	tm := &KV{
 		db: db,
 	}
-
 	err := tm.db.Write(func(writeDB WriteDBHandler) error {
-		if err := tm.ensureTableExists(ctx, "kv", writeDB); err != nil {
-			return err
+		tableName := "kv"
+		createTableSQL := fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
+		    pk TEXT NOT NULL,
+		    sk TEXT NOT NULL,
+		    data JSON NOT NULL,
+		    expires INTEGER,
+		    PRIMARY KEY (pk, sk)
+		);`, tableName)
+		_, err := writeDB.ExecContext(ctx, createTableSQL)
+		if err != nil {
+			return fmt.Errorf("failed to create table %s: %w", tableName, err)
 		}
 		return nil
 	})
@@ -87,25 +96,6 @@ func NewKV(ctx context.Context, db DB) (*KV, error) {
 		return nil, err
 	}
 	return tm, nil
-}
-
-// There would be a race condition here, but since Put/Create/Delete all obtain an exclusive mutex, and since they are the only functions that call it, we're OK.
-func (tm *KV) ensureTableExists(ctx context.Context, tableName string, writeDB WriteDBHandler) error {
-	createTableSQL := fmt.Sprintf(`
-        CREATE TABLE IF NOT EXISTS %s (
-            pk TEXT NOT NULL,
-            sk TEXT NOT NULL,
-            data JSON NOT NULL,
-            expires INTEGER,
-            PRIMARY KEY (pk, sk)
-        );`, tableName)
-
-	// fmt.Printf("Creating table: %s\n", tableName)
-	_, err := writeDB.ExecContext(ctx, createTableSQL)
-	if err != nil {
-		return fmt.Errorf("failed to create table %s: %w", tableName, err)
-	}
-	return nil
 }
 
 // StartCleanupRoutine runs a goroutine that periodically deletes expired rows from KVstore tables.
@@ -118,12 +108,8 @@ func (tm *KV) StartCleanupRoutine(ctx context.Context) {
 				now := time.Now().Unix()
 				tableName := "kv"
 				err := tm.db.Write(func(writeDB WriteDBHandler) error {
-
 					_, err := writeDB.ExecContext(ctx, "DELETE FROM "+tableName+" WHERE expires IS NOT NULL AND expires < ?", now)
-					if err != nil {
-						log.Printf("Error cleaning up expired rows in table %s: %v", tableName, err)
-					}
-					return nil
+					return err
 				})
 				if err != nil {
 					log.Printf("Error cleaning up expired rows in table %s: %v", tableName, err)
@@ -137,19 +123,16 @@ func (tm *KV) putOrCreate(ctx context.Context, pk string, sk string, data JSONVa
 
 	tableName := "kv"
 	changed := true
-	err := tm.db.Write(func(writeDB WriteDBHandler) error {
-
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			return fmt.Errorf("Error encoding data to JSON: %w", err)
-		}
-		// fmt.Printf("Connection: %v\n", tm.db)
-		var expiresUnix *int64
-		if expires != nil {
-			unix := expires.Unix()
-			expiresUnix = &unix
-		}
-
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("error encoding data to JSON: %w", err)
+	}
+	var expiresUnix *int64
+	if expires != nil {
+		unix := expires.Unix()
+		expiresUnix = &unix
+	}
+	err = tm.db.Write(func(writeDB WriteDBHandler) error {
 		if allowUpdate {
 			upsertSQL := fmt.Sprintf(`
         	    INSERT INTO %s (pk, sk, data, expires) VALUES (?, ?, ?, ?)
@@ -157,11 +140,10 @@ func (tm *KV) putOrCreate(ctx context.Context, pk string, sk string, data JSONVa
         	`, tableName)
 			_, err = writeDB.ExecContext(ctx, upsertSQL, pk, sk, jsonData, expiresUnix)
 			if err != nil {
-				return fmt.Errorf("Failed to upsert row in table %s: %w", tableName, err)
+				return fmt.Errorf("failed to upsert row in table %s: %w", tableName, err)
 			}
 			return nil
 		} else {
-
 			insertSQL := fmt.Sprintf(`
         	    INSERT INTO %s (pk, sk, data, expires) VALUES (?, ?, ?, ?)
         	    ON CONFLICT(pk, sk) DO NOTHING;
@@ -172,7 +154,7 @@ func (tm *KV) putOrCreate(ctx context.Context, pk string, sk string, data JSONVa
 			}
 			rowsAffected, err := result.RowsAffected()
 			if err != nil {
-				return fmt.Errorf("Error checking rows affected for table %s: %w", tableName, err)
+				return fmt.Errorf("error checking rows affected for table %s: %w", tableName, err)
 			}
 			if rowsAffected == 0 {
 				// Row with pk and sk already exists and we have simply ignored it.
@@ -183,13 +165,12 @@ func (tm *KV) putOrCreate(ctx context.Context, pk string, sk string, data JSONVa
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("Failed to put row in table %s: %w", tableName, err)
+		return fmt.Errorf("failed to put row in table %s: %w", tableName, err)
 	}
 	if !allowUpdate && !changed {
 		// The create failed
-		return fmt.Errorf("Row with pk %s and sk %s already exists", pk, sk)
+		return fmt.Errorf("row with pk %s and sk %s already exists", pk, sk)
 	}
-
 	return nil
 }
 

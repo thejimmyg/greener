@@ -229,7 +229,9 @@ Transfer/sec:    372.89MB
 
 ## Batch DB
 
-The `BatchDB` is a low level interface used by `KV` and `FTS`. It offers lightning fast SQLite access by batching writes and carefully optimising settings. This means that writes from different parts of your application actually happen in the same transaction under the hood so if one fails, all will fail. Also, there could be a couple of milliseconds delay on each individual write, in return for better throughput. These are good tradeoffs for `KV` and `FTS` where SQL calls are never expected to result in an error. It would be less good for application code where you have to be very careful that errors are correctly returned, otherwise other parts of the code using the same batch DB might silently fail.
+The `BatchDB` is a low level interface used by `KV` and `FTS`. It offers lightning fast SQLite access by batching writes and carefully optimising settings. This means that writes from different parts of your application actually happen in the same transaction under the hood so if one fails, all will fail. Also, there could be a couple of milliseconds delay on each individual write, in return for better throughput. These are good tradeoffs for `KV` and `FTS` where SQL calls are never expected to result in an error.
+
+For safety, any database errors are tracked so that even if you forget to return an error, an error will still be returned to all goroutines that were sharing the transaction.
 
 It comes with a very simple API:
 

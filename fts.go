@@ -143,20 +143,20 @@ func (se *FTS) AddFacets(ctx context.Context, docid string, facets []Facet) erro
 		err := se.db.Write(func(d WriteDBHandler) error {
 			result, err := d.ExecContext(ctx, "INSERT INTO facets (name, value) VALUES (?, ?) ON CONFLICT(name, value) DO NOTHING", facet.Name, facet.Value)
 			if err != nil {
-				return fmt.Errorf("Could not insert facet: %v\n", err)
+				return fmt.Errorf("could not insert facet: %v\n", err)
 			}
 
 			facetID, err := result.LastInsertId()
 			if err != nil || facetID == 0 {
 				err = d.QueryRowContext(ctx, "SELECT id FROM facets WHERE name = ? AND value = ?", facet.Name, facet.Value).Scan(&facetID)
 				if err != nil {
-					return fmt.Errorf("Could not get facet ID: %v\n", err)
+					return fmt.Errorf("could not get facet ID: %v\n", err)
 				}
 			}
 
 			_, err = d.ExecContext(ctx, "INSERT INTO document_facets (document_id, facet_id) VALUES (?, ?)", docid, facetID)
 			if err != nil {
-				return fmt.Errorf("Could not insert document_facet: %v\n", err)
+				return fmt.Errorf("could not insert document_facet: %v\n", err)
 			}
 			return nil
 		})
@@ -250,7 +250,7 @@ func stringsToInterfaces(strings []string) []interface{} {
 }
 
 // Extracts docIDs from search results
-func getDocIDsFromSearchResults(results []map[string]string) []string {
+func GetDocIDsFromSearchResults(results []map[string]string) []string {
 	var docIDs []string
 	for _, result := range results {
 		docIDs = append(docIDs, result["docid"])

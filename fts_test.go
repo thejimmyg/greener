@@ -1,9 +1,10 @@
 // rm search_engine.db ; go run -tags "sqlite_fts5" main.go
 
-package greener
+package greener_test
 
 import (
 	"context"
+	"github.com/thejimmyg/greener"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func TestSearch(t *testing.T) {
 	searchDbPath := filepath.Join(tempDir, "search.db")
 	t.Logf("Search Batch DB path: %s", searchDbPath)
 
-	db, err := NewBatchDB(searchDbPath, 3)
+	db, err := greener.NewBatchDB(searchDbPath, 3)
 	if err != nil {
 		t.Fatalf("Error creating the database connections: %v", err)
 	}
@@ -41,7 +42,7 @@ func TestSearch(t *testing.T) {
 		}
 	})
 
-	se, err := NewFTS(ctx, db)
+	se, err := greener.NewFTS(ctx, db)
 	if err != nil {
 		t.Error(err)
 	}
@@ -65,12 +66,12 @@ func TestSearch(t *testing.T) {
 	t.Logf("Retrieved content: %s\n", string(retrievedContent))
 
 	// Add facets to the document
-	facets := []Facet{
+	facets := []greener.Facet{
 		{"Year", "2021"},
 		{"Author", "John Doe"},
 	}
 	if err := se.AddFacets(ctx, docID, facets); err != nil {
-		t.Errorf("Error adding facets: %v\n", err)
+		t.Errorf("error adding facets: %v\n", err)
 	}
 	t.Logf("Facets added\n")
 
@@ -96,16 +97,16 @@ func TestSearch(t *testing.T) {
 	}
 
 	// Extract docIDs from search results
-	docIDs := getDocIDsFromSearchResults(results)
+	docIDs := greener.GetDocIDsFromSearchResults(results)
 
 	// Fetch facet counts for these docIDs
 	facetCounts, err := se.GetFacetCounts(ctx, docIDs)
 	if err != nil {
-		t.Errorf("Couldn't get facet counts: %v\n", err)
+		t.Errorf("couldn't get facet counts: %v\n", err)
 	}
 
 	// Sort facet counts by total document count within each facet
-	SortFacetsByTotalDocCount(facetCounts)
+	greener.SortFacetsByTotalDocCount(facetCounts)
 
 	// Print out sorted facet counts
 	t.Logf("Sorted Facet Counts:\n")
@@ -127,6 +128,6 @@ func TestSearch(t *testing.T) {
 	if err != nil {
 		t.Logf("Successfully got error retrieving deleted document: %v\n", err)
 	} else {
-		t.Errorf("Expected an error retrieving a deleted document but didn't get one.\n")
+		t.Errorf("expected an error retrieving a deleted document but didn't get one.\n")
 	}
 }

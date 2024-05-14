@@ -101,7 +101,7 @@ func compressContent(content []byte) ([]byte, []byte, error) {
 	wg.Wait()
 
 	if errGzip != nil && errBrotli != nil {
-		return nil, nil, fmt.Errorf("Both Gzip and Brotli compression failed: %v\n%v", errGzip, errBrotli)
+		return nil, nil, fmt.Errorf("both Gzip and Brotli compression failed: %v\n%v", errGzip, errBrotli)
 	} else if errGzip == nil && errBrotli == nil {
 		return gzipBuffer.Bytes(), brotliBuffer.Bytes(), nil
 	} else if errBrotli != nil {

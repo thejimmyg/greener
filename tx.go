@@ -22,6 +22,7 @@ func (t *txWrapper) Abort(err error) {
 	}
 }
 
+// XXX Do we need a wrapper around result because LastInsertId() (int64, error) and RowsAffected() (int64, error) can both return errors? Are these errors ever enough to rollback the transactions?
 func (t *txWrapper) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	if t.err != nil {
 		return nil, fmt.Errorf("this transaction is already aborted")

@@ -92,7 +92,7 @@ func ServeHTTP(logger Logger, addr string, srv *http.Server) {
 type Hello struct{}
 
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello, world!"))
+	w.Write([]byte("Hello, world!\n"))
 }
 
 type Health struct{}
@@ -111,6 +111,8 @@ func Example_server() {
 	uds := settings.Get("UDS", "")
 
 	// Logs
+	log.SetOutput(os.Stdout)
+	log.SetFlags(log.Lshortfile)
 	logger := &Log{}
 
 	// Server
@@ -157,5 +159,7 @@ func Example_server() {
 	// Shutdown
 	stop()
 
-	// Output: Hello, world!
+	// Output: example_server_test.go:25: Server listening on localhost:8080
+	// Hello, world!
+	// example_server_test.go:25: Shutting down server...
 }

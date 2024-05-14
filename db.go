@@ -138,7 +138,7 @@ func (db *BatchDB) batchProcessor() {
 			if txWrapper.err != nil {
 				for _, r := range requests {
 					// All the earlier goroutines get a standard message
-					r.resp <- fmt.Errorf("Transaction aborted")
+					r.resp <- fmt.Errorf("transaction aborted")
 				}
 				requests = requests[:0]
 				continue
@@ -175,7 +175,7 @@ func (db *BatchDB) Close() error {
 	defer db.writeDBLock.Unlock()
 	werr := db.writeDB.Close()
 	if rerr != nil || werr != nil {
-		return fmt.Errorf("Error closing connections. Write DB Err: %v. Read DB err: %v.\n", werr, rerr)
+		return fmt.Errorf("error closing connections. Write DB Err: %v. Read DB err: %v.\n", werr, rerr)
 	}
 	return nil
 }
