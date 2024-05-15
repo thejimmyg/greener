@@ -117,7 +117,7 @@ func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", etag)
 	// Check if the client has sent the If-None-Match header and compare the ETag
 	if match := r.Header.Get("If-None-Match"); match != "" {
-		if match = strings.TrimSpace(match); etagMatch(match, etag) {
+		if match = strings.TrimSpace(match); EtagMatch(match, etag) {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
@@ -131,30 +131,7 @@ func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bestContent := c.content
 	var bestContentSize int = len(c.content)
 
-	// Helper function to parse the Accept-Encoding header
-	parseEncodings := func(header string) map[string]float64 {
-		encodings := make(map[string]float64)
-		for _, part := range strings.Split(header, ",") {
-			pieces := strings.Split(strings.TrimSpace(part), ";")
-			encoding := strings.TrimSpace(pieces[0])
-			qValue := 1.0 // Default qValue for encodings not specifying q-value
-			// This doesn't track the highest q value, it just tracks the last one that isn't 0. In HTTP headers I understand the last valid occurrence of the item takes precedence.
-			if len(pieces) > 1 {
-				qPart := strings.TrimSpace(pieces[1])
-				if strings.HasPrefix(qPart, "q=") {
-					var parsedQ float64
-					if _, err := fmt.Sscanf(qPart[2:], "%f", &parsedQ); err == nil && parsedQ >= 0 && parsedQ <= 1 {
-						encodings[encoding] = parsedQ
-					}
-				}
-			} else {
-				encodings[encoding] = qValue
-			}
-		}
-		return encodings
-	}
-
-	encodings := parseEncodings(acceptEncoding)
+	encodings := ParseEncodings(acceptEncoding)
 
 	// Determine if an encoding is acceptable based on q-values
 	isAcceptable := func(encoding string) bool {
@@ -215,7 +192,7 @@ func (c *contentHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(bestContent)
 }
 
-func etagMatch(header, etag string) bool {
+func EtagMatch(header, etag string) bool {
 	etags := strings.Split(header, ",")
 	for _, e := range etags {
 		trimmedEtag := strings.TrimSpace(e)
@@ -229,4 +206,27 @@ func etagMatch(header, etag string) bool {
 		}
 	}
 	return false
+}
+
+// Helper function to parse the Accept-Encoding header
+func ParseEncodings(header string) map[string]float64 {
+	encodings := make(map[string]float64)
+	for _, part := range strings.Split(header, ",") {
+		pieces := strings.Split(strings.TrimSpace(part), ";")
+		encoding := strings.TrimSpace(pieces[0])
+		qValue := 1.0 // Default qValue for encodings not specifying q-value
+		// This doesn't track the highest q value, it just tracks the last one that isn't 0. In HTTP headers I understand the last valid occurrence of the item takes precedence.
+		if len(pieces) > 1 {
+			qPart := strings.TrimSpace(pieces[1])
+			if strings.HasPrefix(qPart, "q=") {
+				var parsedQ float64
+				if _, err := fmt.Sscanf(qPart[2:], "%f", &parsedQ); err == nil && parsedQ >= 0 && parsedQ <= 1 {
+					encodings[encoding] = parsedQ
+				}
+			}
+		} else {
+			encodings[encoding] = qValue
+		}
+	}
+	return encodings
 }
