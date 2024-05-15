@@ -1,108 +1,82 @@
 package greener
 
 import (
-	"io"
-	"mime"
+	"encoding/json"
+	"fmt"
+	"io/fs"
 	"net/http"
-	"path"
 	"strings"
 )
 
-type deferredResponseWriter struct {
-	http.ResponseWriter
-	body        io.ReadWriter
-	status      int
-	wroteHeader bool
+// ETagEntry represents an entry in the etag.json file
+type ETagEntry struct {
+	MTime string `json:"mtime"`
+	ETag  string `json:"etag"`
 }
 
-func (drw *deferredResponseWriter) WriteHeader(status int) {
-	drw.status = status
-	if status != http.StatusNotFound {
-		drw.ResponseWriter.WriteHeader(status)
-		drw.wroteHeader = true
+// CompressedFileHandler is a handler that serves compressed files.
+type CompressedFileHandler struct {
+	wwwHandler   http.Handler
+	wwwgzHandler http.Handler
+	wwwFS        fs.FS
+	wwwgzFS      fs.FS
+	etagMap      map[string]string
+}
+
+// NewCompressedFileHandler creates a new CompressedFileHandler.
+func NewCompressedFileHandler(wwwFS, wwwgzFS fs.FS, etagMap map[string]string) *CompressedFileHandler {
+	return &CompressedFileHandler{
+		wwwHandler:   http.FileServer(http.FS(wwwFS)),
+		wwwgzHandler: http.FileServer(http.FS(wwwgzFS)),
+		wwwFS:        wwwFS,
+		wwwgzFS:      wwwgzFS,
+		etagMap:      etagMap,
 	}
 }
 
-func (drw *deferredResponseWriter) Write(p []byte) (int, error) {
-	if drw.status != http.StatusNotFound && !drw.wroteHeader {
-		drw.WriteHeader(http.StatusOK) // Assume OK if no other status has been written.
+// LoadEtagsJSON parses the etag.json file and creates a map of paths to ETags.
+func LoadEtagsJSON(data []byte) (map[string]string, error) {
+	var etagFile struct {
+		Entries map[string]ETagEntry `json:"entries"`
 	}
-	if drw.status == http.StatusNotFound {
-		return len(p), nil // Do nothing, just pretend to write for 404.
-	}
-	return drw.ResponseWriter.Write(p)
-}
-
-func NewCompressedFileHandler(root http.FileSystem) http.Handler {
-	fileServer := http.FileServer(root)
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			// Normalize path to ensure it has a trailing slash for directories
-			urlPath := path.Clean(r.URL.Path)
-			if !strings.HasSuffix(urlPath, "/") {
-				urlPath += "/"
-			}
-
-			// Check for index.html.gz in directories
-			d, err := root.Open(urlPath)
-			if err == nil {
-				defer d.Close()
-				if stat, err := d.Stat(); err == nil && stat.IsDir() {
-					index := "index.html.gz"
-					if _, err := root.Open(path.Join(urlPath, index)); err == nil {
-						w.Header().Set("Content-Type", "text/html")
-						w.Header().Set("Content-Encoding", "gzip")
-						r.URL.Path = path.Join(urlPath, index)
-						fileServer.ServeHTTP(w, r)
-						return
-					}
-				}
-			}
-			// Check for .gz version of the file
-			gzipPath := r.URL.Path + ".gz"
-			if _, err := root.Open(gzipPath); err == nil {
-				setGzipContentType(w, root, r.URL.Path)
-				w.Header().Set("Content-Encoding", "gzip")
-				r.URL.Path = gzipPath
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		// Serve the original request
-		fileServer.ServeHTTP(w, r)
-	})
-}
-
-// setGzipContentType sets the Content-Type header based on the file extension,
-// falling back to http.DetectContentType if the extension is not recognized.
-func setGzipContentType(w http.ResponseWriter, fs http.FileSystem, filePath string) {
-	// Attempt to determine Content-Type from file extension first
-	ext := strings.ToLower(path.Ext(filePath))
-	mimeType := mime.TypeByExtension(ext)
-	if mimeType != "" {
-		w.Header().Set("Content-Type", mimeType)
-		return
-	}
-
-	// Fallback to detecting Content-Type by reading file content
-	// if MIME type is not determined by file extension
-	f, err := fs.Open(filePath)
+	err := json.Unmarshal(data, &etagFile)
 	if err != nil {
-		// Unable to open the file; skip setting Content-Type
-		return
-	}
-	defer f.Close()
-
-	// Read a small slice of the file to determine the content type
-	buf := make([]byte, 512)
-	n, _ := f.Read(buf)
-	if n == 0 {
-		return // File is empty or unable to read; skip setting Content-Type
+		return nil, err
 	}
 
-	// Use http.DetectContentType to get the MIME type
-	contentType := http.DetectContentType(buf)
-	w.Header().Set("Content-Type", contentType)
+	etagMap := make(map[string]string)
+	for path, entry := range etagFile.Entries {
+		etagMap[path] = entry.ETag
+	}
+
+	return etagMap, nil
+}
+
+// ServeHTTP serves HTTP requests, checking for compressed versions of files.
+func (h *CompressedFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	requestPath := r.URL.Path[1:]
+	if etag, ok := h.etagMap[requestPath]; ok {
+		w.Header().Set("ETag", fmt.Sprintf(`"%s"`, etag))
+		if match := r.Header.Get("If-None-Match"); match == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		// fmt.Printf("Accpets gzip\n")
+		// Check if the requested path exists in the wwwgz filesystem and is non-zero in size
+		gzipStat, err := fs.Stat(h.wwwgzFS, requestPath)
+		if err == nil && gzipStat.Size() > 0 {
+			// fmt.Printf("Serving gzip\n")
+			w.Header().Set("Content-Encoding", "gzip")
+			h.wwwgzHandler.ServeHTTP(w, r)
+			return
+		} else {
+			// fmt.Printf("Error: %v, path: %s\n", err, r.URL.Path)
+		}
+	}
+
+	// Serve the original request from the www filesystem
+	h.wwwHandler.ServeHTTP(w, r)
 }

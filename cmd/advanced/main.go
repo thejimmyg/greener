@@ -20,8 +20,14 @@ import (
 //go:embed www/*
 var wwwFS embed.FS
 
+//go:embed wwwgz/*
+var wwwgzFS embed.FS
+
 //go:embed icon-512x512.png
 var iconFileFS embed.FS
+
+//go:embed etags.json
+var etagsJson []byte
 
 type SimpleConfig struct{}
 
@@ -76,7 +82,9 @@ func (app *SimpleApp) HandleWithSimpleServices(path string, handler func(*Simple
 
 func main() {
 	// Setup
-	wwwFSRoot, _ := fs.Sub(wwwFS, "www") // Used for the icon and the static file serving
+	wwwFSRoot, _ := fs.Sub(wwwFS, "www")       // Used for the static file serving
+	wwwgzFSRoot, _ := fs.Sub(wwwgzFS, "wwwgz") // Used for compressed static file serving
+
 	uiSupport := []greener.UISupport{greener.NewDefaultUISupport(
 		"body {background: #ffc;}",
 		`console.log("Hello from script");`,
@@ -104,10 +112,13 @@ func main() {
 		greener.NewDefaultSEOInjector(logger, "A web app"),
 		iconInjector,
 		manifestInjector,
-		// greener.NewDefaultLegacyFaviconInjector(logger, wwwFSRoot, "icons/favicon-512x512.png"),
 	}
 	emptyPageProvider := greener.NewDefaultEmptyPageProvider(injectors)
-	static := greener.NewCompressedFileHandler(http.FS(wwwFSRoot))
+	etags, err := greener.LoadEtagsJSON(etagsJson)
+	if err != nil {
+		panic(err)
+	}
+	static := greener.NewCompressedFileHandler(wwwFSRoot, wwwgzFSRoot, etags)
 
 	// Routes
 	app := NewSimpleApp(greener.NewDefaultApp(config, logger, emptyPageProvider), NewSimpleConfig())

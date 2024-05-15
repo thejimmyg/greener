@@ -158,39 +158,47 @@ The injectors themselves use `template.HTML` from `html/template` and combine it
 If you use the Manifest injector it will create a manifest that will load from the URL path `/start` so make sure you implement that route in your app.
 
 
-## GenerateGz
+## Embedded Static Files
 
-There is a [`generategz`](cmd/generategz/main.go) tool that will scan a directly and pre-compress files to .gz adding a `.gz` extension. If the compressed file is actually bigger it is deleted.
+There is a [`generategz`](cmd/generategz/main.go) tool that will scan a `www` directory and pre-compress files to the `wwwgz` directory. If the compressed file is actually bigger it is truncated to 0 bytes. Only files that have chnaged since the last run are compressed. There is also a [`generateetag`](cmd/generateetag/main.go) tool that will create an `etag.json` file containing information about all the files in a `www` directory.
 
-You use it like this:
+You use the tools like this:
 
 ```
-go run cmd/generategz/main.go cmd/advanced/www icons
+$ go run cmd/generategz/main.go cmd/advanced/www
 Walking 'cmd/advanced/www' ...
-Compressing 'cmd/advanced/www/file-to-compress.txt' ...
-Compressing 'cmd/advanced/www/humans.txt' ...
-Gzipped version is larger, so we'll delete it again
-Ignoring 'cmd/advanced/www/icons/favicon-512x512.png'
+Compressing 'cmd/advanced/www/file-to-compress.txt' to 'cmd/advanced/wwwgz/file-to-compress.txt' ...
+Ignoring 'cmd/advanced/www/file-to-compress.txt.gz' since it has an extensions suggesting it is already gzipped
+Compressing 'cmd/advanced/www/humans.txt' to 'cmd/advanced/wwwgz/humans.txt' ...
+Gzipped version of cmd/advanced/www/humans.txt is larger or an error occurred, truncating
+$ go run cmd/generateetag/main.go cmd/advanced/www cmd/advanced/etags.json
+Updated ETag for file-to-compress.txt: 7c26da2b3ea795b8ddba6f562e04e1f2ac2456f256284b90490eb013cabd9775
+Updated ETag for file-to-compress.txt.gz: bd6d6d319869ae7e13929170aa5c536e40ace401aa4c0737831ee9d9b3541220
+Updated ETag for humans.txt: c9b78a438cf845314bacf6aa9df566edfc13de46109ce4b02be1137b57843b30
 ```
 
-In this case `cmd/advanced/www` is the directory where pre-compressed versions should be added and `icons` is a directory relative to that one of files to skip. You can add multiple directories to skip by adding more arguments.
+For `generategz` `cmd/advanced/wwwgz` is the directory where pre-compressed versions should be added. You can add multiple directories at the end of the command to skip by adding more arguments.
 
 Once you have pre-compressed assets in this way you can change the file serving you use from this:
 
 ```
-wwwFS, _ := fs.Sub(wwwFiles, "www") // Used for the icon and the static file serving
-static := greener.NewCompressedFileHandler(http.FS(wwwFS))
+//go:embed www/*
+var wwwFS embed.FS
+//go:embed wwwgz/*
+var wwwgzFS embed.FS
+//go:embed etags.json
+var etagsJson []byte
 ...
-static.ServeHTTP(s.W(), s.R())
+wwwFSRoot, _ := fs.Sub(wwwFS, "www")       // Used for the static file serving
+wwwgzFSRoot, _ := fs.Sub(wwwgzFS, "wwwgz") // Used for compressed static file serving
+etags, err := greener.LoadEtagsJSON(etagsJson)
+if err != nil {
+	panic(err)
+}
+static := greener.NewCompressedFileHandler(wwwFSRoot, wwwgzFSRoot, etags)
+...
+static.ServeHTTP(w, r)
 ```
-
-to:
-
-```
-greener.NewCompressedFileHandler(wwwFS)
-```
-
-In this second version, if a `.gz` version is present and the client supports it, it will be served. Otherwise the original is served. In both cases etag caching is used.
 
 
 ## Examples

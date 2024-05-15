@@ -1,3 +1,4 @@
 .DS_Store
 .sw[op]
-cmd/advanced/www/file-to-compress.txt.gz
+cmd/advanced/wwwgz
+cmd/advanced/etags.json
