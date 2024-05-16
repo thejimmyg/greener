@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// ETagEntry represents an entry in the etag.json file
+// ETagEntry represents an entry in the etags.json file
 type ETagEntry struct {
 	MTime string `json:"mtime"`
 	ETag  string `json:"etag"`
@@ -34,7 +34,7 @@ func NewCompressedFileHandler(wwwFS, wwwgzFS fs.FS, etagMap map[string]string) *
 	}
 }
 
-// LoadEtagsJSON parses the etag.json file and creates a map of paths to ETags.
+// LoadEtagsJSON parses the etags.json file and creates a map of paths to ETags.
 func LoadEtagsJSON(data []byte) (map[string]string, error) {
 	var etagFile struct {
 		Entries map[string]ETagEntry `json:"entries"`

@@ -14,18 +14,18 @@ import (
 	"time"
 )
 
-// ETagEntry represents an entry in the etag.json file
+// ETagEntry represents an entry in the etags.json file
 type ETagEntry struct {
 	MTime time.Time `json:"mtime"`
 	ETag  string    `json:"etag"`
 }
 
-// ETagFile represents the etag.json file
+// ETagFile represents the etags.json file
 type ETagFile struct {
 	Entries map[string]ETagEntry `json:"entries"`
 }
 
-// LoadETagFile loads the etag.json file if it exists
+// LoadETagFile loads the etags.json file if it exists
 func LoadETagFile(etagFilePath string) (*ETagFile, error) {
 	file, err := os.Open(etagFilePath)
 	if err != nil {
@@ -44,7 +44,7 @@ func LoadETagFile(etagFilePath string) (*ETagFile, error) {
 	return &etagFile, nil
 }
 
-// SaveETagFile saves the etag.json file
+// SaveETagFile saves the etags.json file
 func SaveETagFile(etagFilePath string, etagFile *ETagFile) error {
 	file, err := os.Create(etagFilePath)
 	if err != nil {
@@ -111,7 +111,7 @@ func UpdateETags(wwwDir string, etagFile *ETagFile, salt []byte) error {
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: generateetags <www directory path> <etag.json path> [salt]")
+		fmt.Println("Usage: generateetags <www directory path> <etags.json path> [salt]")
 		return
 	}
 

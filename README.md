@@ -160,7 +160,7 @@ If you use the Manifest injector it will create a manifest that will load from t
 
 ## Embedded Static Files
 
-There is a [`generategz`](cmd/generategz/main.go) tool that will scan a `www` directory and pre-compress files to the `wwwgz` directory. If the compressed file is actually bigger it is truncated to 0 bytes. Only files that have chnaged since the last run are compressed. There is also a [`generateetag`](cmd/generateetag/main.go) tool that will create an `etag.json` file containing information about all the files in a `www` directory.
+There is a [`generategz`](cmd/generategz/main.go) tool that will scan a `www` directory and pre-compress files to the `wwwgz` directory. If the compressed file is actually bigger it is truncated to 0 bytes. Only files that have chnaged since the last run are compressed. There is also a [`generateetags`](cmd/generateetags/main.go) tool that will create an `etags.json` file containing information about all the files in a `www` directory.
 
 You use the tools like this:
 
@@ -171,7 +171,7 @@ Compressing 'cmd/advanced/www/file-to-compress.txt' to 'cmd/advanced/wwwgz/file-
 Ignoring 'cmd/advanced/www/file-to-compress.txt.gz' since it has an extensions suggesting it is already gzipped
 Compressing 'cmd/advanced/www/humans.txt' to 'cmd/advanced/wwwgz/humans.txt' ...
 Gzipped version of cmd/advanced/www/humans.txt is larger or an error occurred, truncating
-$ go run cmd/generateetag/main.go cmd/advanced/www cmd/advanced/etags.json
+$ go run cmd/generateetags/main.go cmd/advanced/www cmd/advanced/etags.json
 Updated ETag for file-to-compress.txt: 7c26da2b3ea795b8ddba6f562e04e1f2ac2456f256284b90490eb013cabd9775
 Updated ETag for file-to-compress.txt.gz: bd6d6d319869ae7e13929170aa5c536e40ace401aa4c0737831ee9d9b3541220
 Updated ETag for humans.txt: c9b78a438cf845314bacf6aa9df566edfc13de46109ce4b02be1137b57843b30
