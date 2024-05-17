@@ -2,18 +2,14 @@ package greener
 
 import (
 	"bytes"
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"html/template"
 	"image"
 	"image/png"
 	"io/fs"
-	"net/http"
 	"net/url"
 	"sync"
 
-	"github.com/Kodeworks/golang-image-ico"
 	"golang.org/x/image/draw"
 )
 
@@ -123,9 +119,9 @@ func (d *DefaultIconsInjector) IconPaths() map[int]string {
 	return d.paths
 }
 
-func (d *DefaultIconsInjector) Inject(app App) (template.HTML, template.HTML) {
+func (d *DefaultIconsInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
 	for size := range d.chs {
-		app.Handle("/"+d.paths[size], d.chs[size])
+		mux.Handle("/"+d.paths[size], d.chs[size])
 	}
 	return template.HTML(d.html), template.HTML("")
 }
@@ -171,44 +167,4 @@ func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string, si
 		d.paths[size] = path
 	}
 	return d, nil
-}
-
-func GenerateETag(content []byte) string {
-	h := md5.New()
-	h.Write(content)
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func StaticFaviconHandler(logger Logger, icon512 image.Image) http.HandlerFunc {
-	var favicon []byte // This will store the ICO data
-	var faviconETag string
-
-	// Resize the image to 16x16 pixels only
-	icoImage := resizeImage(icon512, 16)
-	buf := new(bytes.Buffer)
-	// Encode the single image into the ICO format
-	if err := ico.Encode(buf, icoImage); err != nil {
-		logger.Logf("Failed to encode favicon: %v", err)
-		return nil
-	}
-	favicon = buf.Bytes()
-	// Generate the ETag for the favicon data
-	faviconETag = GenerateETag(favicon)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Check for ETag match to possibly return 304 Not Modified
-		if r.Header.Get("If-None-Match") == faviconETag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-
-		// Serve the favicon.ico file with ETag
-		w.Header().Set("Content-Type", "image/x-icon")
-		w.Header().Set("ETag", faviconETag)
-		_, err := w.Write(favicon)
-		if err != nil {
-			logger.Logf("Failed to serve favicon: %v", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-	}
 }
