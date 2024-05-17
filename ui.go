@@ -1,11 +1,11 @@
 package greener
 
 import (
-	"html/template"
-	"net/http"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -43,8 +43,6 @@ type EmptyPageProvider interface {
 	PerformInjections(HandlerRouter)
 	Page(title string, body template.HTML) template.HTML
 }
-
-
 
 // DefaultStyleProvider implements StyleProvider
 type DefaultStyleProvider struct {

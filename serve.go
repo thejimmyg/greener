@@ -9,7 +9,6 @@ import (
 	"strconv"
 )
 
-
 // Logger interface
 type Logger interface {
 	Logf(string, ...interface{})
@@ -22,8 +21,6 @@ type ServeConfigProvider interface {
 	Port() int
 	UDS() string
 }
-
-
 
 // DefaultLogger implements Logger.
 type DefaultLogger struct {
