@@ -6,23 +6,17 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 )
 
-// Logger interface
 type Logger interface {
 	Logf(string, ...interface{})
 	Errorf(string, ...interface{})
 }
 
-// ServeConfigProvider interface for server configuration handling
-type ServeConfigProvider interface {
-	Host() string
-	Port() int
-	UDS() string
-}
-
-// DefaultLogger implements Logger.
 type DefaultLogger struct {
 	logf func(string, ...interface{})
 }
@@ -39,24 +33,8 @@ func NewDefaultLogger(logf func(string, ...interface{})) *DefaultLogger {
 	return &DefaultLogger{logf: logf}
 }
 
-// DefaultServeConfigProvider implments ServeConfigProvider for returning the configuration needed for serving the app
-type DefaultServeConfigProvider struct {
-	host string
-	port int
-	uds  string
-}
-
-func (dscp *DefaultServeConfigProvider) Host() string {
-	return dscp.host
-}
-func (dscp *DefaultServeConfigProvider) Port() int {
-	return dscp.port
-}
-func (dscp *DefaultServeConfigProvider) UDS() string {
-	return dscp.uds
-}
-
-func NewDefaultServeConfigProviderFromEnvironment() *DefaultServeConfigProvider {
+func AutoServe(logger Logger, mux *http.ServeMux) (context.Context, func()) {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	portStr := os.Getenv("PORT")
 	if portStr == "" {
 		portStr = "8000"
@@ -65,39 +43,42 @@ func NewDefaultServeConfigProviderFromEnvironment() *DefaultServeConfigProvider 
 	if err != nil {
 		panic(err)
 	}
-	return &DefaultServeConfigProvider{host: os.Getenv("HOST"), port: port, uds: os.Getenv("UDS")}
+	host := os.Getenv("HOST")
+	uds := os.Getenv("UDS")
+	if uds == "" {
+		mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("OK"))
+		})
+	}
+	go Serve(ctx, logger, mux, host, port, uds)
+	if uds == "" {
+		healthURL := fmt.Sprintf("http://%s:%d/livez", host, port)
+		if err = PollForHealth(healthURL, 2*time.Second, 20*time.Millisecond); err != nil {
+			panic(err)
+		}
+	}
+	return ctx, stop
 }
 
-func Serve(ctx context.Context, logger Logger, handler http.Handler, config ServeConfigProvider) {
-	addr := fmt.Sprintf("%s:%d", config.Host(), config.Port())
-
+func Serve(ctx context.Context, logger Logger, handler http.Handler, host string, port int, uds string) {
+	addr := fmt.Sprintf("%s:%d", host, port)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: handler,
 	}
-	// Listen for the context cancellation in a separate goroutine
-	go func() {
-		<-ctx.Done() // This blocks until the context is cancelled
-
-		logger.Logf("Shutting down server...")
-		if err := srv.Shutdown(context.Background()); err != nil {
-			logger.Logf("Server shutdown failed: %v", err)
-		}
-	}()
-	if config.UDS() != "" {
-		listener, err := net.Listen("unix", config.UDS())
+	if uds != "" {
+		listener, err := net.Listen("unix", uds)
 		if err != nil {
 			logger.Logf("Error listening: %v", err)
 			return
 		}
-		logger.Logf("Server listening on Unix Domain Socket: %s", config.UDS())
+		logger.Logf("Server listening on Unix Domain Socket: %s", uds)
 		if err := srv.Serve(listener); err != http.ErrServerClosed {
 			logger.Logf("Server closed with error: %v", err)
 			return
 		}
 	} else {
 		logger.Logf("Server listening on %s", addr)
-
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			logger.Logf("Server closed with error: %v", err)
 			return

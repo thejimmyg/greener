@@ -215,8 +215,8 @@ Here are some examples.
 You can also run the hello world and advanced examples yourself with:
 
 ```
-go run cmd/hello/main.go
 go run cmd/advanced/main.go
+go run cmd/website/*.go
 ```
 
 Benchmarking the Web Hello example:

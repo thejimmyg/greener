@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"io/fs"
 	"log"
@@ -63,7 +62,6 @@ func main() {
 	)}
 	themeColor := "#000000"
 	appShortName := "Simple"
-	config := greener.NewDefaultServeConfigProviderFromEnvironment()
 	logger := greener.NewDefaultLogger(log.Printf)
 	// Both these would be longer for production though
 	longCacheSeconds := 60 // In real life you might set this to a day, a month or a year perhaps
@@ -100,5 +98,6 @@ func main() {
 	mux.Handle("/start", &StartHandler{EmptyPageProvider: emptyPageProvider})
 
 	// Serve
-	greener.Serve(context.Background(), logger, mux, config)
+	ctx, _ := greener.AutoServe(logger, mux)
+	<-ctx.Done()
 }

@@ -6,6 +6,7 @@ require (
 	github.com/Kodeworks/golang-image-ico v0.0.0-20141118225523-73f0f4cfade9
 	github.com/andybalholm/brotli v1.1.0
 	github.com/mattn/go-sqlite3 v1.14.22
+	github.com/yuin/goldmark v1.7.1
 	golang.org/x/image v0.15.0
 	modernc.org/sqlite v1.29.5
 )
