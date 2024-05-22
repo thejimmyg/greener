@@ -75,6 +75,7 @@ func GenerateETag(filePath string, h hash.Hash) (string, error) {
 // UpdateETags updates the ETags for the files in the www directory
 func UpdateETags(wwwDir string, etagFile *ETagFile, salt []byte) error {
 	h := hmac.New(sha256.New, salt)
+	encounteredPaths := make(map[string]bool)
 
 	err := filepath.Walk(wwwDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -88,6 +89,7 @@ func UpdateETags(wwwDir string, etagFile *ETagFile, salt []byte) error {
 		if err != nil {
 			return err
 		}
+		encounteredPaths[relPath] = true
 
 		entry, exists := etagFile.Entries[relPath]
 		if !exists || info.ModTime().After(entry.MTime) {
@@ -105,6 +107,14 @@ func UpdateETags(wwwDir string, etagFile *ETagFile, salt []byte) error {
 
 		return nil
 	})
+
+	// Clean up any entries that no longer have a corresponding file in wwwDir
+	for path := range etagFile.Entries {
+		if _, found := encounteredPaths[path]; !found {
+			fmt.Printf("Removing stale ETag for %s\n", path)
+			delete(etagFile.Entries, path)
+		}
+	}
 
 	return err
 }

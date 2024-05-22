@@ -135,6 +135,48 @@ func ensureDirPermissions(srcDir, destDir string) error {
 	return nil
 }
 
+func cleanupOrphanedFiles(srcDir, destDir string) error {
+	var dirsToDelete []string
+
+	err := filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relativePath, err := filepath.Rel(destDir, path)
+		if err != nil {
+			return err
+		}
+		correspondingSrcPath := filepath.Join(srcDir, relativePath)
+
+		// Check if the corresponding source path exists
+		if _, err := os.Stat(correspondingSrcPath); os.IsNotExist(err) {
+			if info.IsDir() {
+				// Mark directory for later deletion
+				dirsToDelete = append(dirsToDelete, path)
+			} else {
+				// Delete the file
+				if err := os.Remove(path); err != nil {
+					return fmt.Errorf("failed to remove orphaned file %s: %v", path, err)
+				}
+				fmt.Printf("Removed orphaned file '%s'\n", path)
+			}
+		}
+		return nil
+	})
+
+	// Attempt to delete directories, starting from the deepest
+	for i := len(dirsToDelete) - 1; i >= 0; i-- {
+		if err := os.Remove(dirsToDelete[i]); err == nil {
+			fmt.Printf("Removed empty directory '%s'\n", dirsToDelete[i])
+		} else {
+			fmt.Printf("Failed to remove directory '%s': %v\n", dirsToDelete[i], err)
+		}
+	}
+
+	return err
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: program <www directory> [ignored directories...]")
@@ -202,5 +244,11 @@ func main() {
 
 	if err != nil {
 		fmt.Printf("Error walking the path %s: %v\n", www, err)
+	} else {
+		// Cleanup orphaned files in wwwgz that do not have a corresponding file in www
+		if err := cleanupOrphanedFiles(www, wwwgz); err != nil {
+			fmt.Printf("Error cleaning up orphaned files: %v\n", err)
+		}
 	}
+
 }

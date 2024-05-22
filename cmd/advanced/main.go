@@ -1,3 +1,7 @@
+//go:generate go run ../generateetags/main.go ./www ./etags.json
+//go:generate go run ../generategz/main.go ./www
+
+
 package main
 
 import (
