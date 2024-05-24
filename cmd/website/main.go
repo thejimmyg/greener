@@ -34,27 +34,26 @@ func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type SitemapHandler struct {
-	greener.EmptyPageProvider
-}
-
-func (h *SitemapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if p, ok := pageMap[r.URL.Path]; ok {
-		sitemapHTML := generateSitemapHTML(rootSection, 1, r.URL.Path) // Generate the sitemap content
-		var breadcrumbs template.HTML
-		if p.section != rootSection {
-			breadcrumbs = generateBreadcrumbs(p)
-		}
-		sectionNav := generateSectionNav(p, false, "section", r.URL.Path)
-		renderTemplate(w, h.Page, "Site Map", breadcrumbs, sectionNav, greener.HTMLPrintf("<h1>Sitemap</h1> %s", sitemapHTML))
-	} else {
-		http.Error(w, "404 Not Found", http.StatusNotFound)
-	}
-}
-
-// w.Write([]byte(h.Page("Start", greener.Text("This is your app's start page."))))
+// type SitemapHandler struct {
+// 	greener.EmptyPageProvider
+// }
+//
+// func (h *SitemapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// 	if p, ok := pageMap[r.URL.Path]; ok {
+// 		sitemapHTML := generateSitemapHTML(rootSection, 1, r.URL.Path) // Generate the sitemap content
+// 		var breadcrumbs template.HTML
+// 		if p.section != rootSection {
+// 			breadcrumbs = generateBreadcrumbs(p)
+// 		}
+// 		sectionNav := generateSectionNav(p, false, "section", r.URL.Path)
+// 		renderTemplate(w, h.Page, "Site Map", breadcrumbs, sectionNav, greener.HTMLPrintf("<h1>Sitemap</h1> %s", sitemapHTML))
+// 	} else {
+// 		http.Error(w, "404 Not Found", http.StatusNotFound)
+// 	}
+// }
 
 func main() {
+	dumpSection(rootSection, 0)
 	// Setup
 	themeColor := "#000000"
 	appShortName := "Simple"
@@ -86,7 +85,7 @@ func main() {
 
 	mux.Handle("/", &PageHandler{EmptyPageProvider: emptyPageProvider})
 	// This is loaded based on the injected manifest.json when the user opens your app in PWA mode
-	mux.Handle("/sitemap", &SitemapHandler{EmptyPageProvider: emptyPageProvider})
+	// mux.Handle("/sitemap", &SitemapHandler{EmptyPageProvider: emptyPageProvider})
 
 	// Serve
 	ctx, _ := greener.AutoServe(logger, mux)

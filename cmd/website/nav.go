@@ -3,7 +3,8 @@ package main
 import (
 	"bytes"
 	"embed"
-	"fmt"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/util"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -38,67 +39,67 @@ type Section struct {
 var rootSection *Section
 var pageMap map[string]*Page
 
-func init() {
-	rootSection = &Section{
-		Title: "Home",
-		Page: &Page{
-			Title:   "Home",
-			URL:     "/",
-			Content: "pages/home.md",
-			Children: []*Page{
-				&Page{
-					Title: "Sitemap",
-					URL:   "/sitemap",
-				},
-			},
-		},
-		Children: []*Section{
-			{
-				Title: "About",
-				Page: &Page{
-					Title:   "About Us",
-					URL:     "/about",
-					Content: "pages/about.md",
-				},
-				Children: []*Section{
-					{
-						Title: "History",
-						Page: &Page{
-							Title:   "Our History",
-							URL:     "/about/history",
-							Content: "pages/about_history.md",
-						},
-					},
-					{
-						Title: "About Team",
-						Page: &Page{
-							Title:   "About Team",
-							URL:     "/about/team",
-							Content: "pages/about_team.md",
-							Children: []*Page{
-								{
-									Title:   "Team Awards",
-									URL:     "/about/team/awards",
-									Content: "pages/about_team_awards.md",
-									Children: []*Page{
-
-										{
-											Title:   "2023",
-											URL:     "/about/team/awards/2023",
-											Content: "pages/about_team_awards_2023.md",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	pageMap = make(map[string]*Page)
-	buildPageInSectionMap(rootSection)
-}
+//func init() {
+//	rootSection = &Section{
+//		Title: "Home",
+//		Page: &Page{
+//			Title:   "Home",
+//			URL:     "/",
+//			Content: "pages/home.md",
+//			Children: []*Page{
+//				&Page{
+//					Title: "Sitemap",
+//					URL:   "/sitemap",
+//				},
+//			},
+//		},
+//		Children: []*Section{
+//			{
+//				Title: "About",
+//				Page: &Page{
+//					Title:   "About Us",
+//					URL:     "/about",
+//					Content: "pages/about.md",
+//				},
+//				Children: []*Section{
+//					{
+//						Title: "History",
+//						Page: &Page{
+//							Title:   "Our History",
+//							URL:     "/about/history",
+//							Content: "pages/about_history.md",
+//						},
+//					},
+//					{
+//						Title: "About Team",
+//						Page: &Page{
+//							Title:   "About Team",
+//							URL:     "/about/team",
+//							Content: "pages/about_team.md",
+//							Children: []*Page{
+//								{
+//									Title:   "Team Awards",
+//									URL:     "/about/team/awards",
+//									Content: "pages/about_team_awards.md",
+//									Children: []*Page{
+//
+//										{
+//											Title:   "2023",
+//											URL:     "/about/team/awards/2023",
+//											Content: "pages/about_team_awards_2023.md",
+//										},
+//									},
+//								},
+//							},
+//						},
+//					},
+//				},
+//			},
+//		},
+//	}
+// 	pageMap = make(map[string]*Page)
+// 	buildPageInSectionMap(rootSection)
+// }
 
 func buildPageInSectionMap(s *Section) {
 	if s.Page != nil {
@@ -185,6 +186,24 @@ func appendChildPagesNav(currentPage *Page, navBuilder *greener.HTMLBuilder, pag
 }
 
 // Convert Markdown content to HTML, caching the result
+// func (p *Page) ConvertMarkdownToHTML() error {
+// 	var err error
+// 	p.once.Do(func() {
+// 		var mdContent []byte
+// 		mdContent, err = fs.ReadFile(pageFiles, p.Content)
+// 		if err != nil {
+// 			return
+// 		}
+// 		buffer := new(bytes.Buffer)
+// 		if err = goldmark.Convert(mdContent, buffer); err != nil {
+// 			return
+// 		}
+// 		// We trust the markdown renderer
+// 		p.HTML = template.HTML(buffer.Bytes())
+// 	})
+// 	return err
+// }
+
 func (p *Page) ConvertMarkdownToHTML() error {
 	var err error
 	p.once.Do(func() {
@@ -194,10 +213,21 @@ func (p *Page) ConvertMarkdownToHTML() error {
 			return
 		}
 		buffer := new(bytes.Buffer)
-		if err = goldmark.Convert(mdContent, buffer); err != nil {
+
+		// Create a new Markdown processor with the custom transformer
+		md := goldmark.New(
+			goldmark.WithRendererOptions(),
+			goldmark.WithParserOptions(
+				parser.WithASTTransformers(
+					util.Prioritized(&mdLinkTransformer{}, 100), // Use an instance of the struct
+				),
+			),
+		)
+
+		// Convert Markdown to HTML
+		if err = md.Convert(mdContent, buffer); err != nil {
 			return
 		}
-		// We trust the markdown renderer
 		p.HTML = template.HTML(buffer.Bytes())
 	})
 	return err
@@ -208,17 +238,17 @@ func renderTemplate(w http.ResponseWriter, page func(string, template.HTML) temp
 	w.Write([]byte(html))
 }
 
-func generateSitemapHTML(s *Section, depth int, url string) template.HTML {
-	var builder greener.HTMLBuilder
-	tag := fmt.Sprintf("h%d", depth+1)
-	builder.Printf(`<%s>%s</%s>`, greener.Text(tag), greener.Text(s.Title), greener.Text(tag))
-	if s.Page != nil {
-		sectionNavHTML := generateSectionNav(s.Page, true, "sitemap", url)
-		builder.WriteHTML(sectionNavHTML)
-	}
-	for _, child := range s.Children {
-		childHTML := generateSitemapHTML(child, depth+1, url) // Increment depth for child sections
-		builder.WriteHTML(childHTML)
-	}
-	return builder.HTML()
-}
+// func generateSitemapHTML(s *Section, depth int, url string) template.HTML {
+// 	var builder greener.HTMLBuilder
+// 	tag := fmt.Sprintf("h%d", depth+1)
+// 	builder.Printf(`<%s>%s</%s>`, greener.Text(tag), greener.Text(s.Title), greener.Text(tag))
+// 	if s.Page != nil {
+// 		sectionNavHTML := generateSectionNav(s.Page, true, "sitemap", url)
+// 		builder.WriteHTML(sectionNavHTML)
+// 	}
+// 	for _, child := range s.Children {
+// 		childHTML := generateSitemapHTML(child, depth+1, url) // Increment depth for child sections
+// 		builder.WriteHTML(childHTML)
+// 	}
+// 	return builder.HTML()
+// }
