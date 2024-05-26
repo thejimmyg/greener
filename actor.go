@@ -39,7 +39,7 @@ func PollForHealth(url string, timeout time.Duration, retryTimeout time.Duration
 		// }
 		time.Sleep(retryTimeout) // sleep before retrying
 	}
-	return fmt.Errorf("server not ready within %v", timeout)
+	return fmt.Errorf("server at %s not ready within %v", url, timeout)
 }
 
 // handle is a generic function that abstracts the common pattern of decoding an HTTP request,

@@ -17,7 +17,11 @@ type PageHandler struct {
 }
 
 func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if p, ok := pageMap[r.URL.Path]; ok {
+	path := r.URL.Path
+	if path == "/" {
+		path = "/home"
+	}
+	if p, ok := pageMap[path]; ok {
 		if err := p.ConvertMarkdownToHTML(); err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
@@ -26,9 +30,8 @@ func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if p.section != rootSection {
 			breadcrumbs = generateBreadcrumbs(p)
 		}
-		sectionNav := generateSectionNav(p, false, "section", r.URL.Path)
+		sectionNav := generateSectionNav(p, false, "section", path)
 		renderTemplate(w, h.Page, p.Title, breadcrumbs, sectionNav, p.HTML)
-
 	} else {
 		http.Error(w, "404 Not Found", http.StatusNotFound)
 	}
@@ -88,6 +91,9 @@ func main() {
 	// mux.Handle("/sitemap", &SitemapHandler{EmptyPageProvider: emptyPageProvider})
 
 	// Serve
-	ctx, _ := greener.AutoServe(logger, mux)
+	err, ctx, _ := greener.AutoServe(logger, mux)
+	if err != nil {
+		panic(err)
+	}
 	<-ctx.Done()
 }

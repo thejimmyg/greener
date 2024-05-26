@@ -5,39 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/thejimmyg/greener"
 )
-
-// Logging
-type Logger interface {
-	Logf(string, ...any)
-}
-type Log struct{}
-
-func (l *Log) Logf(m string, a ...any) {
-	log.Printf(m, a...)
-}
-
-// Settings
-type SettingGetter interface {
-	Get(string, string) string
-}
-type Env struct{}
-
-func (e *Env) Get(name string, ifEmpty string) string {
-	value := os.Getenv(name)
-	if value == "" {
-		return ifEmpty
-	}
-	return value
-}
 
 func Get(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -67,28 +40,6 @@ func Get(ctx context.Context, url string) (string, error) {
 	return string(responseBody), nil
 }
 
-func ServeUDS(logger Logger, uds string, srv *http.Server) {
-	// UNIX Domain Socket support
-	listener, err := net.Listen("unix", uds)
-	if err != nil {
-		logger.Logf("Error listening: %v", err)
-		os.Exit(1)
-	}
-	logger.Logf("Server listening on Unix Domain Socket: %s", uds)
-	if err := srv.Serve(listener); err != http.ErrServerClosed {
-		logger.Logf("Server closed with error: %v", err)
-		os.Exit(1)
-	}
-}
-func ServeHTTP(logger Logger, addr string, srv *http.Server) {
-
-	// HTTP support
-	logger.Logf("Server listening on %s", addr)
-	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-		logger.Logf("Server closed with error: %v", err)
-	}
-}
-
 type Hello struct{}
 
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -103,51 +54,26 @@ func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Demonstrates how to set up and run a server
 func Example_server() {
-	// Settings
-	settings := &Env{}
-	host := settings.Get("HOST", "localhost")
-	port := settings.Get("PORT", "8080")
-	addr := fmt.Sprintf("%s:%s", host, port)
-	uds := settings.Get("UDS", "")
-
 	// Logs
 	log.SetOutput(os.Stdout)
-	log.SetFlags(log.Lshortfile)
-	logger := &Log{}
+	log.SetFlags(0)
+	logger := greener.NewDefaultLogger(log.Printf)
 
 	// Server
 	mux := http.NewServeMux()
-	mux.Handle("/health", &Health{})
 	mux.Handle("/", &Hello{})
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+
+	// Set up a context that can be cancelled by SIGTERM or SIGINT, serve
+	// based on HOST, PORT, ORIGIN and UDS, add a /livez path, wait for
+	// /livez to return 200 if possible based on the environment variables
+	// chosen
+	err, ctx, stop := greener.AutoServe(logger, mux)
+	if err != nil {
+		logger.Logf("ERROR: %v\n", err)
 	}
 
-	// Context
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	shutdown := make(chan error)
-	go func() {
-		<-ctx.Done() // This blocks until the context is cancelled by calling stop() or sending a signal
-		logger.Logf("Shutting down server...")
-		shutdown <- srv.Shutdown(context.Background())
-	}()
-
-	// Serve
-	go func() {
-		if uds != "" {
-			ServeUDS(logger, uds, srv)
-		} else {
-			ServeHTTP(logger, addr, srv)
-		}
-	}()
-
-	// Wait
-	greener.PollForHealth("http://localhost:8080/health", 2*time.Second, 20*time.Millisecond)
-
 	// Get response
-	url := fmt.Sprintf("http://%s/", addr)
-	resp, err := Get(ctx, url)
+	resp, err := Get(ctx, "http://localhost:8000/")
 	if err != nil {
 		logger.Logf("Error getting response: %v", err)
 		os.Exit(1)
@@ -156,11 +82,9 @@ func Example_server() {
 
 	// Shutdown
 	stop()
-	err = <-shutdown
-	if err != nil {
-		logger.Logf("Error shutting down: %v", err)
-	}
-	// Output: example_server_test.go:25: Server listening on localhost:8080
+	<-ctx.Done()
+	logger.Logf("Shut down server.")
+	// Output: Server listening on localhost:8000
 	// Hello, world!
-	// example_server_test.go:25: Shutting down server...
+	// Shut down server.
 }

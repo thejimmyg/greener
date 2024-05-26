@@ -1,7 +1,6 @@
 //go:generate go run ../generateetags/main.go ./www ./etags.json
 //go:generate go run ../generategz/main.go ./www
 
-
 package main
 
 import (
@@ -102,6 +101,9 @@ func main() {
 	mux.Handle("/start", &StartHandler{EmptyPageProvider: emptyPageProvider})
 
 	// Serve
-	ctx, _ := greener.AutoServe(logger, mux)
+	err, ctx, _ := greener.AutoServe(logger, mux)
+	if err != nil {
+		panic(err)
+	}
 	<-ctx.Done()
 }

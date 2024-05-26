@@ -14,7 +14,7 @@ import (
 
 type Logger interface {
 	Logf(string, ...interface{})
-	Errorf(string, ...interface{})
+	// Errorf(string, ...interface{})
 }
 
 type DefaultLogger struct {
@@ -25,15 +25,15 @@ func (cl *DefaultLogger) Logf(m string, a ...interface{}) {
 	cl.logf(m, a...)
 }
 
-func (cl *DefaultLogger) Errorf(m string, a ...interface{}) {
-	cl.logf("ERROR: "+m, a...)
-}
+// func (cl *DefaultLogger) Errorf(m string, a ...interface{}) {
+// 	cl.logf("ERROR: "+m, a...)
+// }
 
 func NewDefaultLogger(logf func(string, ...interface{})) *DefaultLogger {
 	return &DefaultLogger{logf: logf}
 }
 
-func AutoServe(logger Logger, mux *http.ServeMux) (context.Context, func()) {
+func AutoServe(logger Logger, mux *http.ServeMux) (error, context.Context, func()) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	portStr := os.Getenv("PORT")
 	if portStr == "" {
@@ -41,23 +41,30 @@ func AutoServe(logger Logger, mux *http.ServeMux) (context.Context, func()) {
 	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		panic(err)
+		return err, nil, nil
 	}
+	origin := os.Getenv("ORIGIN")
 	host := os.Getenv("HOST")
-	uds := os.Getenv("UDS")
-	if uds == "" {
-		mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("OK"))
-		})
+	if host == "" {
+		host = "localhost"
 	}
+	uds := os.Getenv("UDS")
+	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
 	go Serve(ctx, logger, mux, host, port, uds)
-	if uds == "" {
-		healthURL := fmt.Sprintf("http://%s:%d/livez", host, port)
+	healthURL := ""
+	if origin != "" {
+		healthURL = fmt.Sprintf("%s/livez", origin)
+	} else if uds == "" {
+		healthURL = fmt.Sprintf("http://%s:%d/livez", host, port)
+	}
+	if healthURL != "" {
 		if err = PollForHealth(healthURL, 2*time.Second, 20*time.Millisecond); err != nil {
-			panic(err)
+			return err, nil, nil
 		}
 	}
-	return ctx, stop
+	return nil, ctx, stop
 }
 
 func Serve(ctx context.Context, logger Logger, handler http.Handler, host string, port int, uds string) {

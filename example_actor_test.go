@@ -122,15 +122,15 @@ func Example_actor() {
 	}
 
 	server := &HTTPServer{actor: localActor}
-	fmt.Println("Server starting on port :8000...")
+	fmt.Println("Server starting on port :8001...")
 	go func() {
 		// Start HTTP server
-		if err := http.ListenAndServe("localhost:8000", server); err != nil {
+		if err := http.ListenAndServe("localhost:8001", server); err != nil {
 			fmt.Println("Failed to start server:", err)
 		}
 	}()
 
-	err = greener.PollForHealth("http://localhost:8000/health", 2*time.Second, 20*time.Millisecond)
+	err = greener.PollForHealth("http://localhost:8001/health", 2*time.Second, 20*time.Millisecond)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -141,7 +141,7 @@ func Example_actor() {
 	}
 
 	remoteActor := RemoteActor{
-		ServerURL: "http://localhost:8000",
+		ServerURL: "http://localhost:8001",
 		Client:    httpClient,
 	}
 
@@ -161,7 +161,7 @@ func Example_actor() {
 
 	// Output: Local Answers: [{1 4}]
 	// Local Quiz Score: 1
-	// Server starting on port :8000...
+	// Server starting on port :8001...
 	// Remote Answers: [{1 4}]
 	// Remote Quiz Score: 1
 }
