@@ -76,6 +76,9 @@ func parseSitemap(content []byte) (*Section, error) {
 						title = string(link.Text(content))
 					}
 					url := strings.TrimSuffix(string(link.Destination), ".md")
+					if strings.HasSuffix(url, "/index") {
+						url = strings.TrimSuffix(url, "index")
+					}
 					contentPath := "pages" + string(link.Destination)
 					page := &Page{
 						Title:   title,

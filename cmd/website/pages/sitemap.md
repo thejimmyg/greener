@@ -6,7 +6,7 @@ This contains all the pages on the site.
 
 This is a very interesting section.
 
-- [Home](/home.md)
+- [Home](/index.md)
 - [Sitemap](/sitemap.md)
 
 ### About

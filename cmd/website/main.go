@@ -2,11 +2,11 @@ package main
 
 import (
 	"embed"
+	"fmt"
+	"github.com/thejimmyg/greener"
 	"html/template"
 	"log"
 	"net/http"
-
-	"github.com/thejimmyg/greener"
 )
 
 //go:embed icon-512x512.png
@@ -18,11 +18,9 @@ type PageHandler struct {
 
 func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	if path == "/" {
-		path = "/home"
-	}
 	if p, ok := pageMap[path]; ok {
 		if err := p.ConvertMarkdownToHTML(); err != nil {
+			fmt.Printf("%v\n", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}

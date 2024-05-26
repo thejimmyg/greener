@@ -16,7 +16,9 @@ func (t *mdLinkTransformer) Transform(node *ast.Document, reader text.Reader, pc
 		}
 		if link, ok := n.(*ast.Link); ok {
 			linkDest := string(link.Destination)
-			if strings.HasSuffix(linkDest, ".md") {
+			if strings.HasSuffix(linkDest, "/index.md") {
+				link.Destination = []byte(strings.TrimSuffix(linkDest, "index.md"))
+			} else if strings.HasSuffix(linkDest, ".md") {
 				link.Destination = []byte(strings.TrimSuffix(linkDest, ".md"))
 			}
 		}
