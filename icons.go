@@ -3,7 +3,6 @@ package greener
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"image"
 	"image/png"
 	"io/fs"
@@ -110,20 +109,25 @@ type DefaultIconsInjector struct {
 	icon512      image.Image
 	sizes        []int
 	cacheSeconds int
-	html         string
 	paths        map[int]string
 	chs          map[int]ContentHandler
+	iconHTML     []string
 }
 
 func (d *DefaultIconsInjector) IconPaths() map[int]string {
 	return d.paths
 }
 
-func (d *DefaultIconsInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
+func (d *DefaultIconsInjector) InjectHTML(currentPath string, headExtra *HTMLBuilder, bodyExtra *HTMLBuilder) {
+	rel := RelativePath(currentPath, "/")
+	for _, iconHTML := range d.iconHTML {
+		headExtra.Printf(iconHTML, Text(rel))
+	}
+}
+func (d *DefaultIconsInjector) InjectHandlers(mux HandlerRouter) {
 	for size := range d.chs {
 		mux.Handle("/"+d.paths[size], d.chs[size])
 	}
-	return template.HTML(d.html), template.HTML("")
 }
 
 func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string, sizes []int, cacheSeconds int) (*DefaultIconsInjector, error) {
@@ -145,7 +149,6 @@ func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string, si
 		cacheSeconds: cacheSeconds,
 		paths:        make(map[int]string),
 		chs:          make(map[int]ContentHandler),
-		html:         "",
 	}
 	d.Logf("Injecting route and HTML for png icons")
 	resizedImages, err := loadAndResizeImage(icon512Bytes, icon512, d.sizes)
@@ -158,11 +161,12 @@ func NewDefaultIconsInjector(logger Logger, iconFS fs.FS, icon512Path string, si
 		d.chs[size] = NewContentHandler(d.Logger, imageData, "image/png", "", d.cacheSeconds)
 		path := fmt.Sprintf("icon-%dx%d-%s.png", size, size, d.chs[size].Hash())
 		encodedPath := url.PathEscape(path)
-		d.html += fmt.Sprintf(`
-    <link rel="icon" type="image/png" sizes="%dx%d" href="/%s">`, size, size, encodedPath)
+		d.iconHTML = append(d.iconHTML, fmt.Sprintf(`
+    <link rel="icon" type="image/png" sizes="%dx%d" href="%%s%s">`, size, size, encodedPath))
 		if size == 180 {
-			d.html += fmt.Sprintf(`
-    <link rel="apple-touch-icon" sizes="180x180" href="/%s">`, encodedPath)
+
+			d.iconHTML = append(d.iconHTML, fmt.Sprintf(`
+    <link rel="apple-touch-icon" sizes="180x180" href="%%s%s">`, encodedPath))
 		}
 		d.paths[size] = path
 	}

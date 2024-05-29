@@ -2,56 +2,13 @@ package main
 
 import (
 	"embed"
-	"fmt"
 	"github.com/thejimmyg/greener"
-	"html/template"
 	"log"
 	"net/http"
 )
 
 //go:embed icon-512x512.png
 var iconFileFS embed.FS
-
-type PageHandler struct {
-	greener.EmptyPageProvider
-}
-
-func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	if p, ok := pageMap[path]; ok {
-		if err := p.ConvertMarkdownToHTML(); err != nil {
-			fmt.Printf("%v\n", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		var breadcrumbs template.HTML
-		if p.section != rootSection {
-			breadcrumbs = generateBreadcrumbs(p)
-		}
-		sectionNav := generateSectionNav(p, false, "section", path)
-		renderTemplate(w, h.Page, p.Title, breadcrumbs, sectionNav, p.HTML)
-	} else {
-		http.Error(w, "404 Not Found", http.StatusNotFound)
-	}
-}
-
-// type SitemapHandler struct {
-// 	greener.EmptyPageProvider
-// }
-//
-// func (h *SitemapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-// 	if p, ok := pageMap[r.URL.Path]; ok {
-// 		sitemapHTML := generateSitemapHTML(rootSection, 1, r.URL.Path) // Generate the sitemap content
-// 		var breadcrumbs template.HTML
-// 		if p.section != rootSection {
-// 			breadcrumbs = generateBreadcrumbs(p)
-// 		}
-// 		sectionNav := generateSectionNav(p, false, "section", r.URL.Path)
-// 		renderTemplate(w, h.Page, "Site Map", breadcrumbs, sectionNav, greener.HTMLPrintf("<h1>Sitemap</h1> %s", sitemapHTML))
-// 	} else {
-// 		http.Error(w, "404 Not Found", http.StatusNotFound)
-// 	}
-// }
 
 func main() {
 	dumpSection(rootSection, 0)

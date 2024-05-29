@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"path/filepath"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -17,7 +18,7 @@ func init() {
 		log.Fatalf("Error reading sitemap markdown: %s", err)
 	}
 
-	rootSection, err = parseSitemap(markdown)
+	rootSection, err = parseSitemap("/sitemap.html", markdown)
 	if err != nil {
 		log.Fatalf("Error parsing sitemap markdown: %s", err)
 	}
@@ -27,13 +28,14 @@ func init() {
 }
 
 // Function to parse the sitemap from markdown content
-func parseSitemap(content []byte) (*Section, error) {
+func parseSitemap(currentPath string, content []byte) (*Section, error) {
 	md := goldmark.New()
 	document := md.Parser().Parse(text.NewReader(content))
 
 	var currentSection *Section
 	var root *Section
 	var currentPage *Page // Tracks the current page for nesting pages correctly
+	dir := filepath.Dir(currentPath)
 
 	ast.Walk(document, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -75,11 +77,8 @@ func parseSitemap(content []byte) (*Section, error) {
 					if title == "" {
 						title = string(link.Text(content))
 					}
-					url := strings.TrimSuffix(string(link.Destination), ".md")
-					if strings.HasSuffix(url, "/index") {
-						url = strings.TrimSuffix(url, "index")
-					}
-					contentPath := "pages" + string(link.Destination)
+					url := filepath.Join(dir, strings.TrimSuffix(string(link.Destination), ".md")+".html")
+					contentPath := filepath.Join("pages", filepath.Join(dir, string(link.Destination)))
 					page := &Page{
 						Title:   title,
 						URL:     url,

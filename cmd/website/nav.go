@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/util"
 	"html/template"
 	"io/fs"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/thejimmyg/greener"
@@ -39,67 +42,32 @@ type Section struct {
 var rootSection *Section
 var pageMap map[string]*Page
 
-//func init() {
-//	rootSection = &Section{
-//		Title: "Home",
-//		Page: &Page{
-//			Title:   "Home",
-//			URL:     "/",
-//			Content: "pages/home.md",
-//			Children: []*Page{
-//				&Page{
-//					Title: "Sitemap",
-//					URL:   "/sitemap",
-//				},
-//			},
-//		},
-//		Children: []*Section{
-//			{
-//				Title: "About",
-//				Page: &Page{
-//					Title:   "About Us",
-//					URL:     "/about",
-//					Content: "pages/about.md",
-//				},
-//				Children: []*Section{
-//					{
-//						Title: "History",
-//						Page: &Page{
-//							Title:   "Our History",
-//							URL:     "/about/history",
-//							Content: "pages/about_history.md",
-//						},
-//					},
-//					{
-//						Title: "About Team",
-//						Page: &Page{
-//							Title:   "About Team",
-//							URL:     "/about/team",
-//							Content: "pages/about_team.md",
-//							Children: []*Page{
-//								{
-//									Title:   "Team Awards",
-//									URL:     "/about/team/awards",
-//									Content: "pages/about_team_awards.md",
-//									Children: []*Page{
-//
-//										{
-//											Title:   "2023",
-//											URL:     "/about/team/awards/2023",
-//											Content: "pages/about_team_awards_2023.md",
-//										},
-//									},
-//								},
-//							},
-//						},
-//					},
-//				},
-//			},
-//		},
-//	}
-// 	pageMap = make(map[string]*Page)
-// 	buildPageInSectionMap(rootSection)
-// }
+type PageHandler struct {
+	greener.EmptyPageProvider
+}
+
+func (h *PageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if strings.HasSuffix(path, "/") {
+		http.Redirect(w, r, path+"index.html", http.StatusTemporaryRedirect)
+		return
+	}
+	if p, ok := pageMap[path]; ok {
+		if err := p.ConvertMarkdownToHTML(path); err != nil {
+			fmt.Printf("%v\n", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		var breadcrumbs template.HTML
+		if p.section != rootSection {
+			breadcrumbs = generateBreadcrumbs(path, p)
+		}
+		sectionNav := generateSectionNav(p, false, "section", path)
+		renderTemplate(w, h.Page, p.Title, breadcrumbs, sectionNav, p.HTML, path)
+	} else {
+		http.Error(w, "404 Not Found", http.StatusNotFound)
+	}
+}
 
 func buildPageInSectionMap(s *Section) {
 	if s.Page != nil {
@@ -120,7 +88,8 @@ func buildPageMap(p *Page, s *Section) {
 	}
 }
 
-func generateBreadcrumbs(p *Page) template.HTML {
+func generateBreadcrumbs(currentPath string, p *Page) template.HTML {
+	dir := filepath.Dir(currentPath)
 	crumbs := []template.HTML{}
 	for s := p.section; s != nil; s = s.parent {
 		if s.Page != nil { // Ensure there is a page to link to
@@ -129,9 +98,9 @@ func generateBreadcrumbs(p *Page) template.HTML {
 				title = s.Page.Title
 			}
 			if s == p.section && s.Page == p {
-				crumbs = append(crumbs, greener.HTMLPrintf("<li>%s</li>", greener.Text(title)))
+				crumbs = append(crumbs, greener.HTMLPrintf("      <li>%s</li>\n", greener.Text(title)))
 			} else {
-				crumbs = append(crumbs, greener.HTMLPrintf("<li><a href='%s'>%s</a></li>", greener.Text(s.Page.URL), greener.Text(s.Title)))
+				crumbs = append(crumbs, greener.HTMLPrintf("      <li><a href=\"%s\">%s</a></li>\n", greener.Text(relativeURL(dir, s.Page.URL)), greener.Text(s.Title)))
 			}
 		}
 	}
@@ -139,72 +108,62 @@ func generateBreadcrumbs(p *Page) template.HTML {
 	for i, j := 0, len(crumbs)-1; i < j; i, j = i+1, j-1 {
 		crumbs[i], crumbs[j] = crumbs[j], crumbs[i]
 	}
-	return greener.HTMLPrintf(`<ul class="breadcrumbs">%s</ul>`, greener.ConcatenateHTML(crumbs, "\n"))
+	return greener.HTMLPrintf(`    <ul class="breadcrumbs">
+%s    </ul>
+`, greener.ConcatenateHTML(crumbs, ""))
 }
 
-func generateChildSectionsNav(currentPage *Page) template.HTML {
+func generateChildSectionsNav(currentPath string, currentPage *Page) template.HTML {
+	dir := filepath.Dir(currentPath)
 	childSections := []template.HTML{}
 	for _, section := range currentPage.section.Children {
-		childSections = append(childSections, greener.HTMLPrintf(`<li class="section"><a href="%s">%s</a>`, greener.Text(section.Page.URL), greener.Text(section.Title)))
+		childSections = append(childSections, greener.HTMLPrintf(`      <li class="section"><a href="%s">%s</a>
+`, greener.Text(relativeURL(dir, section.Page.URL)), greener.Text(section.Title)))
 	}
-	return greener.ConcatenateHTML(childSections, "\n")
+	return greener.ConcatenateHTML(childSections, "")
 }
 
-func generateSectionNav(currentPage *Page, linkEverything bool, class string, url string) template.HTML {
+func generateSectionNav(currentPage *Page, linkEverything bool, class string, currentPath string) template.HTML {
+	dir := filepath.Dir(currentPath)
 	s := currentPage.section
 	p := s.Page
 
 	navBuilder := &greener.HTMLBuilder{}
-	navBuilder.Printf(`<ul class="%s">`, greener.Text(class))
-	if (currentPage == p && !linkEverything) || p.URL == url {
-		navBuilder.Printf(`<li class="sectionhome">%s</li>`, greener.Text(p.Title))
+	navBuilder.Printf(`    <ul class="%s">
+`, greener.Text(class))
+	if (currentPage == p && !linkEverything) || p.URL == currentPath {
+		navBuilder.Printf(`      <li class="sectionhome">%s</li>
+`, greener.Text(p.Title))
 	} else {
-		navBuilder.Printf(`<li class="sectionhome"><a href='%s'>%s</a></li>`, greener.Text(p.URL), greener.Text(p.Title))
+		navBuilder.Printf(`      <li class="sectionhome"><a href="%s">%s</a></li>
+`, greener.Text(relativeURL(dir, p.URL)), greener.Text(p.Title))
 	}
-	appendChildPagesNav(currentPage, navBuilder, p.Children, linkEverything, url)
+	appendChildPagesNav(currentPage, navBuilder, p.Children, linkEverything, currentPath)
 	if class != "sitemap" {
-		navBuilder.WriteHTML(generateChildSectionsNav(currentPage))
+		navBuilder.WriteHTML(generateChildSectionsNav(currentPath, currentPage))
 	}
-	navBuilder.WriteHTML(template.HTML("</ul>"))
+	navBuilder.WriteHTML(template.HTML("    </ul>\n"))
 	return navBuilder.HTML()
 }
 
-func appendChildPagesNav(currentPage *Page, navBuilder *greener.HTMLBuilder, pages []*Page, linkEverything bool, url string) {
+func appendChildPagesNav(currentPage *Page, navBuilder *greener.HTMLBuilder, pages []*Page, linkEverything bool, currentPath string) {
+	dir := filepath.Dir(currentPath)
 	for _, page := range pages {
-		if (currentPage == page && !linkEverything) || page.URL == url {
-			navBuilder.Printf("<li>%s</li>", greener.Text(page.Title))
+		if (currentPage == page && !linkEverything) || page.URL == currentPath {
+			navBuilder.Printf("      <li>%s</li>\n", greener.Text(page.Title))
 		} else {
-			navBuilder.Printf("<li><a href='%s'>%s</a></li>", greener.Text(page.URL), greener.Text(page.Title))
+			navBuilder.Printf(`      <li><a href="%s">%s</a></li>
+`, greener.Text(relativeURL(dir, page.URL)), greener.Text(page.Title))
 		}
 		if len(page.Children) > 0 {
-			navBuilder.WriteHTML(template.HTML("<ul>"))
-			appendChildPagesNav(currentPage, navBuilder, page.Children, linkEverything, url)
-			navBuilder.WriteHTML(template.HTML("</ul>"))
+			navBuilder.WriteHTML(template.HTML("    <ul>\n"))
+			appendChildPagesNav(currentPage, navBuilder, page.Children, linkEverything, currentPath)
+			navBuilder.WriteHTML(template.HTML("    </ul>\n"))
 		}
-		//navBuilder.WriteHTML(template.HTML("</li>"))
 	}
 }
 
-// Convert Markdown content to HTML, caching the result
-// func (p *Page) ConvertMarkdownToHTML() error {
-// 	var err error
-// 	p.once.Do(func() {
-// 		var mdContent []byte
-// 		mdContent, err = fs.ReadFile(pageFiles, p.Content)
-// 		if err != nil {
-// 			return
-// 		}
-// 		buffer := new(bytes.Buffer)
-// 		if err = goldmark.Convert(mdContent, buffer); err != nil {
-// 			return
-// 		}
-// 		// We trust the markdown renderer
-// 		p.HTML = template.HTML(buffer.Bytes())
-// 	})
-// 	return err
-// }
-
-func (p *Page) ConvertMarkdownToHTML() error {
+func (p *Page) ConvertMarkdownToHTML(currentPath string) error {
 	var err error
 	p.once.Do(func() {
 		var mdContent []byte
@@ -219,7 +178,7 @@ func (p *Page) ConvertMarkdownToHTML() error {
 			goldmark.WithRendererOptions(),
 			goldmark.WithParserOptions(
 				parser.WithASTTransformers(
-					util.Prioritized(&mdLinkTransformer{}, 100), // Use an instance of the struct
+					util.Prioritized(&mdLinkTransformer{currentPath: currentPath}, 100), // Use an instance of the struct
 				),
 			),
 		)
@@ -228,27 +187,33 @@ func (p *Page) ConvertMarkdownToHTML() error {
 		if err = md.Convert(mdContent, buffer); err != nil {
 			return
 		}
-		p.HTML = template.HTML(buffer.Bytes())
+		b := buffer.Bytes()
+		p.HTML = template.HTML(AddIndentation(b[:len(b)-1], "    "))
 	})
 	return err
 }
 
-func renderTemplate(w http.ResponseWriter, page func(string, template.HTML) template.HTML, pageTitle string, breadcrumbs, sectionNav, content template.HTML) {
-	html := page(pageTitle, greener.HTMLPrintf(`%s %s %s`, breadcrumbs, sectionNav, content))
+func AddIndentation(input []byte, indent string) string {
+	lines := strings.Split(string(input), "\n")
+	for i, line := range lines {
+		if line != "" { // Optionally skip indenting empty lines
+			lines[i] = indent + line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderTemplate(w http.ResponseWriter, page func(string, template.HTML, string) template.HTML, pageTitle string, breadcrumbs, sectionNav, content template.HTML, currentPath string) {
+	html := page(pageTitle, greener.HTMLPrintf("%s%s%s", breadcrumbs, sectionNav, content), currentPath)
 	w.Write([]byte(html))
 }
 
-// func generateSitemapHTML(s *Section, depth int, url string) template.HTML {
-// 	var builder greener.HTMLBuilder
-// 	tag := fmt.Sprintf("h%d", depth+1)
-// 	builder.Printf(`<%s>%s</%s>`, greener.Text(tag), greener.Text(s.Title), greener.Text(tag))
-// 	if s.Page != nil {
-// 		sectionNavHTML := generateSectionNav(s.Page, true, "sitemap", url)
-// 		builder.WriteHTML(sectionNavHTML)
-// 	}
-// 	for _, child := range s.Children {
-// 		childHTML := generateSitemapHTML(child, depth+1, url) // Increment depth for child sections
-// 		builder.WriteHTML(childHTML)
-// 	}
-// 	return builder.HTML()
-// }
+func relativeURL(dir, dest string) string {
+	// fmt.Printf("Dir: %s Dest: %s\n", dir, dest)
+	if strings.HasPrefix(dest, "/") {
+		relativePath, _ := filepath.Rel(dir, dest)
+		return relativePath
+	} else {
+		return dest
+	}
+}

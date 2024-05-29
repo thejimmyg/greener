@@ -7,7 +7,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"strings"
+	"path/filepath"
 )
 
 // UISupport
@@ -31,7 +31,8 @@ type UISupport interface {
 
 // Injector
 type Injector interface {
-	Inject(HandlerRouter) (template.HTML, template.HTML)
+	InjectHandlers(HandlerRouter)
+	InjectHTML(string, *HTMLBuilder, *HTMLBuilder)
 }
 
 type HandlerRouter interface {
@@ -41,7 +42,7 @@ type HandlerRouter interface {
 // EmptyPageProvider
 type EmptyPageProvider interface {
 	PerformInjections(HandlerRouter)
-	Page(title string, body template.HTML) template.HTML
+	Page(title string, body template.HTML, currentPath string) template.HTML
 }
 
 // DefaultStyleProvider implements StyleProvider
@@ -91,9 +92,15 @@ type DefaultStyleInjector struct {
 	Logger
 	uiSupports   []UISupport
 	cacheSeconds int
+	link         string
 }
 
-func (d *DefaultStyleInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
+func (d *DefaultStyleInjector) InjectHTML(currentPath string, headExtra *HTMLBuilder, bodyExtra *HTMLBuilder) {
+	rel := RelativePath(currentPath, "/")
+	headExtra.Printf(d.link, Text(rel))
+}
+
+func (d *DefaultStyleInjector) InjectHandlers(mux HandlerRouter) {
 	var buffer bytes.Buffer
 	for _, uis := range d.uiSupports {
 		buffer.WriteString(uis.Style())
@@ -103,11 +110,10 @@ func (d *DefaultStyleInjector) Inject(mux HandlerRouter) (template.HTML, templat
 		d.Logf("Injecting route and HTML for styles")
 		ch := NewContentHandler(d.Logger, style, "text/css", "", d.cacheSeconds)
 		mux.Handle("/style-"+ch.Hash()+".css", ch)
-		return HTMLPrintf(`
-    <link rel="stylesheet" href="/style-%s.css">`, Text(url.PathEscape(ch.Hash()))), template.HTML("")
+		d.link = fmt.Sprintf(`
+    <link rel="stylesheet" href="%%sstyle-%s.css">`, Text(url.PathEscape(ch.Hash())))
 	} else {
 		d.Logf("No styles specified")
-		return template.HTML(""), template.HTML("")
 	}
 }
 func NewDefaultStyleInjector(logger Logger, uiSupports []UISupport, cacheSeconds int) *DefaultStyleInjector {
@@ -118,9 +124,15 @@ type DefaultScriptInjector struct {
 	Logger
 	uiSupports   []UISupport
 	cacheSeconds int
+	script       string
 }
 
-func (d *DefaultScriptInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
+func (d *DefaultScriptInjector) InjectHTML(currentPath string, headExtra *HTMLBuilder, bodyExtra *HTMLBuilder) {
+	rel := RelativePath(currentPath, "/")
+	bodyExtra.Printf(d.script, Text(rel))
+}
+
+func (d *DefaultScriptInjector) InjectHandlers(mux HandlerRouter) {
 	// Handle service worker first
 	var swBuffer bytes.Buffer
 	for _, sp := range d.uiSupports {
@@ -160,11 +172,10 @@ if ('serviceWorker' in navigator) {
 		d.Logf("Injecting route and HTML for script")
 		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "", d.cacheSeconds)
 		mux.Handle("/script-"+ch.Hash()+".js", ch)
-		return template.HTML(""), HTMLPrintf(`
-    <script src="/script-%s.js"></script>`, Text(url.PathEscape(ch.Hash())))
+		d.script = fmt.Sprintf(`
+    <script src="%%sscript-%s.js"></script>`, Text(url.PathEscape(ch.Hash())))
 	} else {
 		d.Logf("No scripts specified")
-		return template.HTML(""), template.HTML("")
 	}
 }
 
@@ -175,13 +186,17 @@ func NewDefaultScriptInjector(logger Logger, uiSupports []UISupport, cacheSecond
 type DefaultThemeColorInjector struct {
 	Logger
 	themeColor string
+	html       template.HTML
 }
 
-func (d *DefaultThemeColorInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
+func (d *DefaultThemeColorInjector) InjectHTML(currentPath string, headExtra *HTMLBuilder, bodyExtra *HTMLBuilder) {
+	headExtra.WriteHTML(d.html)
+}
+func (d *DefaultThemeColorInjector) InjectHandlers(mux HandlerRouter) {
 	d.Logf("Injecting HTML for theme color")
-	return HTMLPrintf(`
+	d.html = HTMLPrintf(`
     <meta name="msapplication-TileColor" content="%s">
-    <meta name="theme-color" content="%s">`, Text(d.themeColor), Text(d.themeColor)), template.HTML("")
+    <meta name="theme-color" content="%s">`, Text(d.themeColor), Text(d.themeColor))
 }
 
 func NewDefaultThemeColorInjector(logger Logger, themeColor string) *DefaultThemeColorInjector {
@@ -191,12 +206,17 @@ func NewDefaultThemeColorInjector(logger Logger, themeColor string) *DefaultThem
 type DefaultSEOInjector struct {
 	Logger
 	description string
+	html        template.HTML
 }
 
-func (d *DefaultSEOInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
+func (d *DefaultSEOInjector) InjectHTML(currentPath string, headExtra *HTMLBuilder, bodyExtra *HTMLBuilder) {
+	headExtra.WriteHTML(d.html)
+}
+
+func (d *DefaultSEOInjector) InjectHandlers(mux HandlerRouter) {
 	d.Logf("Adding HTML for SEO meta description")
-	return HTMLPrintf(`
-    <meta name="description" content="%s">`, Text(d.description)), template.HTML("")
+	d.html = HTMLPrintf(`
+    <meta name="description" content="%s">`, Text(d.description))
 }
 
 func NewDefaultSEOInjector(logger Logger, description string) *DefaultSEOInjector {
@@ -210,6 +230,7 @@ type DefaultManifestInjector struct {
 	cacheSeconds int
 	startURL     string
 	icons        []icon
+	manifest     string
 }
 
 type icon struct {
@@ -218,7 +239,11 @@ type icon struct {
 	Type  string `json:"type"`
 }
 
-func (d *DefaultManifestInjector) Inject(mux HandlerRouter) (template.HTML, template.HTML) {
+func (d *DefaultManifestInjector) InjectHTML(currentPath string, headExtra *HTMLBuilder, bodyExtra *HTMLBuilder) {
+	rel := RelativePath(currentPath, "/")
+	headExtra.Printf(d.manifest, Text(rel))
+}
+func (d *DefaultManifestInjector) InjectHandlers(mux HandlerRouter) {
 	manifestData := struct {
 		Name       string `json:"name"`
 		ShortName  string `json:"short_name"`
@@ -242,8 +267,8 @@ func (d *DefaultManifestInjector) Inject(mux HandlerRouter) (template.HTML, temp
 	d.Logf("Adding route for manifest")
 	ch := NewContentHandler(d.Logger, manifest, "application/json", "", d.cacheSeconds)
 	mux.Handle("/manifest.json", ch)
-	return template.HTML(`
-    <link rel="manifest" href="/manifest.json">`), template.HTML("")
+	d.manifest = fmt.Sprintf(`
+    <link rel="manifest" href="%%smanifest.json">`)
 }
 
 func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor string, startURL string, cacheSeconds int, iconPaths map[int]string, sizes []int) (*DefaultManifestInjector, error) {
@@ -273,31 +298,42 @@ type DefaultEmptyPageProvider struct {
 	injectors []Injector
 }
 
-func (d *DefaultEmptyPageProvider) Page(title string, body template.HTML) template.HTML {
-	return HTMLPrintf(d.page, Text(title), body)
-}
-
-func (d *DefaultEmptyPageProvider) PerformInjections(mux HandlerRouter) {
-	headExtra := ""
-	bodyExtra := ""
+func (d *DefaultEmptyPageProvider) Page(title string, body template.HTML, currentPage string) template.HTML {
+	headExtra := &HTMLBuilder{}
+	bodyExtra := &HTMLBuilder{}
 	for _, injector := range d.injectors {
-		h, b := injector.Inject(mux)
-		headExtra += strings.Replace(string(h), "%", "%%", -1)
-		bodyExtra += strings.Replace(string(b), "%", "%%", -1)
+		injector.InjectHTML(currentPage, headExtra, bodyExtra)
 	}
-	d.page = `<!DOCTYPE html>
+	return HTMLPrintf(`<!DOCTYPE html>
 <html lang="en-GB">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>%s</title>` + headExtra + `
+    <title>%s</title>%s
   </head>
   <body>
-%s` + bodyExtra + `
+%s%s
   </body>
-</html>`
+</html>`, Text(title), headExtra.HTML(), body, bodyExtra.HTML())
+}
+
+func (d *DefaultEmptyPageProvider) PerformInjections(mux HandlerRouter) {
+	for _, injector := range d.injectors {
+		injector.InjectHandlers(mux)
+	}
 }
 
 func NewDefaultEmptyPageProvider(injectors []Injector) *DefaultEmptyPageProvider {
 	return &DefaultEmptyPageProvider{injectors: injectors}
+}
+
+func RelativePath(currentPath, target string) string {
+	rel, _ := filepath.Rel(filepath.Dir(currentPath), target)
+	if rel == "." {
+		rel = ""
+	} else {
+		rel = rel + "/"
+	}
+	// fmt.Printf("%s %s\n", currentPath, rel)
+	return rel
 }

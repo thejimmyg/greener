@@ -41,7 +41,7 @@ func (h *HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.static.ServeHTTP(w, r)
 	} else {
 		// Let's use our new WritePageProvider, instead of this version that uses app and s separately
-		w.Write([]byte(h.Page("Hello", greener.Text("Hello <>!"))))
+		w.Write([]byte(h.Page("Hello", greener.Text("Hello <>!"), r.URL.Path)))
 	}
 }
 
@@ -50,7 +50,7 @@ type StartHandler struct {
 }
 
 func (h *StartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(h.Page("Start", greener.Text("This is your app's start page."))))
+	w.Write([]byte(h.Page("Start", greener.Text("This is your app's start page."), r.URL.Path)))
 }
 
 func main() {
