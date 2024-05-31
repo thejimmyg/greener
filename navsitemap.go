@@ -1,9 +1,7 @@
-package main
+package greener
 
 import (
 	"fmt"
-	"io/fs"
-	"log"
 	"path/filepath"
 	"strings"
 
@@ -12,23 +10,8 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-func init() {
-	markdown, err := fs.ReadFile(pageFiles, "pages/sitemap.md")
-	if err != nil {
-		log.Fatalf("Error reading sitemap markdown: %s", err)
-	}
-
-	rootSection, err = parseSitemap("/sitemap.html", markdown)
-	if err != nil {
-		log.Fatalf("Error parsing sitemap markdown: %s", err)
-	}
-
-	pageMap = make(map[string]*Page)
-	buildPageInSectionMap(rootSection)
-}
-
 // Function to parse the sitemap from markdown content
-func parseSitemap(currentPath string, content []byte) (*Section, error) {
+func ParseSitemap(currentPath string, content []byte) (*Section, error) {
 	md := goldmark.New()
 	document := md.Parser().Parse(text.NewReader(content))
 
@@ -110,7 +93,7 @@ func (s *Section) level() int {
 }
 
 // Helper function to dump page details and their children recursively
-func dumpPage(p *Page, depth int) {
+func DumpPage(p *Page, depth int) {
 	if p == nil {
 		return
 	}
@@ -120,12 +103,12 @@ func dumpPage(p *Page, depth int) {
 
 	// Recursively dump child pages
 	for _, child := range p.Children {
-		dumpPage(child, depth+1)
+		DumpPage(child, depth+1)
 	}
 }
 
 // Function to dump section details and traverse child sections and pages
-func dumpSection(s *Section, depth int) {
+func DumpSection(s *Section, depth int) {
 	if s == nil {
 		return
 	}
@@ -136,13 +119,13 @@ func dumpSection(s *Section, depth int) {
 	// If the section has an associated page, dump the page and its children
 	if s.Page != nil {
 		// fmt.Printf("%s  Page: Title: %s, URL: %s\n", indent, s.Page.Title, s.Page.URL)
-		dumpPage(s.Page, depth+1) // Also print child pages if any
+		DumpPage(s.Page, depth+1) // Also print child pages if any
 	} else {
 		fmt.Printf("%s  No pages\n", indent)
 	}
 
 	// Recursively dump child sections
 	for _, child := range s.Children {
-		dumpSection(child, depth+1)
+		DumpSection(child, depth+1)
 	}
 }

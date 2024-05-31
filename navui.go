@@ -1,13 +1,9 @@
-package main
+package greener
 
-import (
-	"github.com/thejimmyg/greener"
-)
-
-var uiSupport []greener.UISupport
+var NavUISupport []UISupport
 
 func init() {
-	uiSupport = append(uiSupport, greener.NewDefaultUISupport(
+	NavUISupport = append(NavUISupport, NewDefaultUISupport(
 		`
 /* Breadcrumb Navigation */
 ul.breadcrumbs {

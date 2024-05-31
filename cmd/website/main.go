@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"github.com/thejimmyg/greener"
+	"io/fs"
 	"log"
 	"net/http"
 )
@@ -10,8 +11,27 @@ import (
 //go:embed icon-512x512.png
 var iconFileFS embed.FS
 
+// Embed the markdown files located in the pages directory
+//
+//go:embed pages/*
+var pageFiles embed.FS
+
 func main() {
-	dumpSection(rootSection, 0)
+
+	pageMap := make(map[string]*greener.Page)
+	markdown, err := fs.ReadFile(pageFiles, "pages/sitemap.md")
+	if err != nil {
+		log.Fatalf("Error reading sitemap markdown: %s", err)
+	}
+
+	rootSection, err := greener.ParseSitemap("/sitemap.html", markdown)
+	if err != nil {
+		log.Fatalf("Error parsing sitemap markdown: %s", err)
+	}
+
+	greener.BuildPageInSectionMap(rootSection, pageMap)
+
+	greener.DumpSection(rootSection, 0)
 	// Setup
 	themeColor := "#000000"
 	appShortName := "Simple"
@@ -28,8 +48,8 @@ func main() {
 		panic(err)
 	}
 	injectors := []greener.Injector{
-		greener.NewDefaultStyleInjector(logger, uiSupport, longCacheSeconds),
-		greener.NewDefaultScriptInjector(logger, uiSupport, longCacheSeconds),
+		greener.NewDefaultStyleInjector(logger, greener.NavUISupport, longCacheSeconds),
+		greener.NewDefaultScriptInjector(logger, greener.NavUISupport, longCacheSeconds),
 		greener.NewDefaultThemeColorInjector(logger, themeColor),
 		greener.NewDefaultSEOInjector(logger, "A web app"),
 		iconInjector,
@@ -41,7 +61,7 @@ func main() {
 	mux := http.NewServeMux()
 	emptyPageProvider.PerformInjections(mux)
 
-	mux.Handle("/", &PageHandler{EmptyPageProvider: emptyPageProvider})
+	mux.Handle("/", &greener.PageHandler{RootSection: rootSection, PagesFS: pageFiles, EmptyPageProvider: emptyPageProvider, PageMap: pageMap})
 	// This is loaded based on the injected manifest.json when the user opens your app in PWA mode
 	// mux.Handle("/sitemap", &SitemapHandler{EmptyPageProvider: emptyPageProvider})
 

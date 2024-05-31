@@ -1,4 +1,4 @@
-package main
+package greener
 
 import (
 	"github.com/yuin/goldmark/ast"

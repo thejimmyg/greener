@@ -39,6 +39,45 @@ type HandlerRouter interface {
 	Handle(string, http.Handler)
 }
 
+type CaptureResponseWriter struct {
+	body *bytes.Buffer
+}
+
+func (crw *CaptureResponseWriter) Write(b []byte) (int, error) {
+	return crw.body.Write(b)
+}
+
+func (crw *CaptureResponseWriter) Header() http.Header {
+	return http.Header{}
+}
+
+func (crw *CaptureResponseWriter) WriteHeader(statusCode int) {
+	// Not needed for simple capture
+}
+
+type CaptureMux struct {
+	Responses map[string]string
+}
+
+func NewCaptureMux() *CaptureMux {
+	return &CaptureMux{
+		Responses: make(map[string]string),
+	}
+}
+
+func (cm *CaptureMux) Handle(path string, handler http.Handler) {
+	// Create a buffer to capture the response
+	crw := &CaptureResponseWriter{
+		body: new(bytes.Buffer),
+	}
+
+	// Simulate a request to handle
+	handler.ServeHTTP(crw, &http.Request{})
+
+	// Store the response associated with the path
+	cm.Responses[path] = crw.body.String()
+}
+
 // EmptyPageProvider
 type EmptyPageProvider interface {
 	PerformInjections(HandlerRouter)
@@ -109,7 +148,9 @@ func (d *DefaultStyleInjector) InjectHandlers(mux HandlerRouter) {
 	if style != nil {
 		d.Logf("Injecting route and HTML for styles")
 		ch := NewContentHandler(d.Logger, style, "text/css", "", d.cacheSeconds)
-		mux.Handle("/style-"+ch.Hash()+".css", ch)
+		if mux != nil {
+			mux.Handle("/style-"+ch.Hash()+".css", ch)
+		}
 		d.link = fmt.Sprintf(`
     <link rel="stylesheet" href="%%sstyle-%s.css">`, Text(url.PathEscape(ch.Hash())))
 	} else {
@@ -143,7 +184,9 @@ func (d *DefaultScriptInjector) InjectHandlers(mux HandlerRouter) {
 		d.Logf("Injecting route for /service-worker.js")
 		// No cache for this one
 		ch := NewContentHandler(d.Logger, serviceWorker, "text/javascript; charset=utf-8", "", 0)
-		mux.Handle("/service-worker.js", ch)
+		if mux != nil {
+			mux.Handle("/service-worker.js", ch)
+		}
 	} else {
 		d.Logf("No service workers specified")
 	}
@@ -171,7 +214,9 @@ if ('serviceWorker' in navigator) {
 	if script != nil {
 		d.Logf("Injecting route and HTML for script")
 		ch := NewContentHandler(d.Logger, script, "text/javascript; charset=utf-8", "", d.cacheSeconds)
-		mux.Handle("/script-"+ch.Hash()+".js", ch)
+		if mux != nil {
+			mux.Handle("/script-"+ch.Hash()+".js", ch)
+		}
 		d.script = fmt.Sprintf(`
     <script src="%%sscript-%s.js"></script>`, Text(url.PathEscape(ch.Hash())))
 	} else {
@@ -266,7 +311,9 @@ func (d *DefaultManifestInjector) InjectHandlers(mux HandlerRouter) {
 	}
 	d.Logf("Adding route for manifest")
 	ch := NewContentHandler(d.Logger, manifest, "application/json", "", d.cacheSeconds)
-	mux.Handle("/manifest.json", ch)
+	if mux != nil {
+		mux.Handle("/manifest.json", ch)
+	}
 	d.manifest = fmt.Sprintf(`
     <link rel="manifest" href="%%smanifest.json">`)
 }
