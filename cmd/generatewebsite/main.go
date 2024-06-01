@@ -107,14 +107,16 @@ func processFile(path, srcDir, destDir string, info os.FileInfo, pageMap map[str
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Println("Usage: <program> <source directory> <destination directory> <path to sitemap markdown file>")
+	if len(os.Args) != 6 {
+		fmt.Println("Usage: <program> <source directory> <destination directory> <path to sitemap markdown file> <path to icon file dir> <relative icon file path>")
 		return
 	}
 
 	srcDir := os.Args[1]
 	destDir := os.Args[2]
 	sitemapPath := os.Args[3]
+	iconFileDir := os.Args[4]
+	iconFileRelPath := os.Args[5]
 
 	pageMap := make(map[string]*greener.Page)
 	markdown, err := ioutil.ReadFile(sitemapPath)
@@ -131,18 +133,30 @@ func main() {
 	logger := greener.NewDefaultLogger(log.Printf)
 	// Both these would be longer for production though
 	longCacheSeconds := 60 // In real life you might set this to a day, a month or a year perhaps
+	shortCacheSeconds := 5 // Keep this fairly short because you want changes to propgagte quickly
 
+	iconFileFS := os.DirFS(iconFileDir)
+	iconInjector, err := greener.NewDefaultIconsInjector(logger, iconFileFS, iconFileRelPath, []int{16, 32, 144, 180, 192, 512}, longCacheSeconds)
+	appShortName := "Static"
+	if err != nil {
+		panic(err)
+	}
+	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "/start", shortCacheSeconds, iconInjector.IconPaths(), []int{192, 512})
+	if err != nil {
+		panic(err)
+	}
 	injectors := []greener.Injector{
 		greener.NewDefaultStyleInjector(logger, greener.NavUISupport, longCacheSeconds),
 		greener.NewDefaultScriptInjector(logger, greener.NavUISupport, longCacheSeconds),
 		greener.NewDefaultThemeColorInjector(logger, themeColor),
 		greener.NewDefaultSEOInjector(logger, "A web app"),
+		iconInjector,
+		manifestInjector,
 	}
 	emptyPageProvider := greener.NewDefaultEmptyPageProvider(injectors)
 	mux := greener.NewCaptureMux()
 	emptyPageProvider.PerformInjections(mux)
 	writeResponses(destDir, mux)
-
 	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
