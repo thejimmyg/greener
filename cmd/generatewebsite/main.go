@@ -92,17 +92,31 @@ func processFile(path, srcDir, destDir string, info os.FileInfo, pageMap map[str
 		// Write the result to the new HTML file
 		return ioutil.WriteFile(targetPath, []byte(transformedData), 0644)
 	} else {
+
 		// Check if the target file exists and compare mod times
 		targetInfo, err := os.Stat(targetPath)
-		if err == nil && targetInfo.ModTime().After(info.ModTime()) {
-			// Target file is newer, skip linking
-			fmt.Printf("Skipping %s\n", relPath)
-			return nil
+		if err == nil {
+			if targetInfo.ModTime().After(info.ModTime()) {
+				// Target file is newer, skip linking
+				fmt.Printf("Skipping %s\n", relPath)
+				return nil
+			}
+			// Target file is older, remove it before linking
+			fmt.Printf("Removing older %s\n", relPath)
+			if err := os.Remove(targetPath); err != nil {
+				fmt.Printf("Failed to remove %s: %v\n", targetPath, err)
+				return err
+			}
+		} else if !os.IsNotExist(err) {
+			// Some other error occurred when attempting to stat the file
+			fmt.Printf("Error stating %s: %v\n", targetPath, err)
+			return err
 		}
 
-		// Create a hard link for other files
+		// Create a hard link for the file
 		fmt.Printf("Linking %s\n", relPath)
 		return os.Link(path, targetPath)
+
 	}
 }
 
@@ -159,10 +173,14 @@ func main() {
 	writeResponses(destDir, mux)
 	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			fmt.Printf("ERROR: %s\n", err)
+			// return err
 		}
 		if !info.IsDir() {
-			return processFile(path, srcDir, destDir, info, pageMap, rootSection, emptyPageProvider)
+			if err := processFile(path, srcDir, destDir, info, pageMap, rootSection, emptyPageProvider); err != nil {
+				fmt.Printf("ERROR: %s\n", err)
+				// return err
+			}
 		}
 		return nil
 	})
