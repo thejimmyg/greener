@@ -2,3 +2,4 @@
 .sw[op]
 cmd/advanced/wwwgz
 cmd/advanced/etags.json
+cmd/generatewebsite/static
