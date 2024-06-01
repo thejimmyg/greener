@@ -1,4 +1,4 @@
-// go run main.go ../website/pages html ../website/pages/sitemap.md
+// go run main.go ../website/pages tim ../website/pages/sitemap.md ../website/ icon-512x512.png
 
 package main
 
@@ -155,7 +155,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "/start", shortCacheSeconds, iconInjector.IconPaths(), []int{192, 512})
+	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "start", shortCacheSeconds, iconInjector.IconPaths(), []int{192, 512})
 	if err != nil {
 		panic(err)
 	}

@@ -43,7 +43,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "/start", shortCacheSeconds, iconInjector.IconPaths(), []int{192, 512})
+	manifestInjector, err := greener.NewDefaultManifestInjector(logger, appShortName, themeColor, "start", shortCacheSeconds, iconInjector.IconPaths(), []int{192, 512})
 	if err != nil {
 		panic(err)
 	}

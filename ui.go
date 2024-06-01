@@ -329,7 +329,7 @@ func NewDefaultManifestInjector(logger Logger, appShortName string, themeColor s
 		}
 
 		icons = append(icons, icon{
-			Src:   "/" + path,
+			Src:   path,
 			Sizes: fmt.Sprintf("%dx%d", size, size),
 			Type:  "image/png",
 		})
